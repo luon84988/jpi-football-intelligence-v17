@@ -30,9 +30,14 @@ const worker = {
     const url = new URL(request.url);
 
     if (url.pathname === "/api/football/live") {
-      const leagues = [["英超", "eng.1"], ["西甲", "esp.1"], ["意甲", "ita.1"], ["德甲", "ger.1"], ["法甲", "fra.1"], ["欧冠", "uefa.champions"]] as const;
+      const leagues = [
+        ["日职", "jpn.1", "日韩联赛", "一级"], ["韩K职", "kor.1", "日韩联赛", "一级"],
+        ["英超", "eng.1", "欧洲顶级", "一级"], ["西甲", "esp.1", "欧洲顶级", "一级"], ["意甲", "ita.1", "欧洲顶级", "一级"], ["德甲", "ger.1", "欧洲顶级", "一级"], ["法甲", "fra.1", "欧洲顶级", "一级"], ["荷甲", "ned.1", "欧洲顶级", "一级"], ["葡超", "por.1", "欧洲顶级", "一级"], ["比甲", "bel.1", "欧洲顶级", "一级"], ["苏超", "sco.1", "欧洲顶级", "一级"], ["土超", "tur.1", "欧洲顶级", "一级"],
+        ["英冠", "eng.2", "欧洲次级", "二级"], ["英甲", "eng.3", "欧洲次级", "三级"], ["英乙", "eng.4", "欧洲次级", "四级"], ["西乙", "esp.2", "欧洲次级", "二级"], ["意乙", "ita.2", "欧洲次级", "二级"], ["德乙", "ger.2", "欧洲次级", "二级"], ["法乙", "fra.2", "欧洲次级", "二级"],
+        ["欧冠", "uefa.champions", "欧洲洲际", "洲际"], ["欧联", "uefa.europa", "欧洲洲际", "洲际"], ["欧协联", "uefa.europa.conf", "欧洲洲际", "洲际"]
+      ] as const;
       try {
-        const results = await Promise.all(leagues.map(async ([label, code]) => {
+        const settled = await Promise.allSettled(leagues.map(async ([label, code, group, tier]) => {
           const response = await fetch(`https://site.api.espn.com/apis/site/v2/sports/soccer/${code}/scoreboard`, { headers: { "Accept": "application/json" } });
           if (!response.ok) return [];
           const payload = await response.json() as any;
@@ -43,11 +48,18 @@ const worker = {
             const completed = event.status?.type?.completed;
             const inProgress = event.status?.type?.state === "in";
             const status = inProgress || completed ? `${home?.score ?? 0}–${away?.score ?? 0} · ${event.status?.type?.shortDetail || ''}` : event.status?.type?.shortDetail || "未开赛";
-            return { league: label, time: new Intl.DateTimeFormat("zh-CN", { timeZone: "Asia/Shanghai", hour: "2-digit", minute: "2-digit", hour12: false }).format(new Date(event.date)), home: home?.team?.displayName || "TBD", away: away?.team?.displayName || "TBD", dq: "B", edge: "—", risk: inProgress ? "C" : "B", signal: completed ? "已完场" : inProgress ? "进行中" : "待分析", score: inProgress || completed ? `${home?.score ?? 0}–${away?.score ?? 0}` : "—", pdi: inProgress ? 0.62 : 0.5, draw: "待评估", odds: ["—", "—", "—"], status };
+            const homeRecord = home?.records?.[0]?.summary || "";
+            const awayRecord = away?.records?.[0]?.summary || "";
+            const recordScore = (value: string) => { const n = value.split(/[-–]/).map(Number); return n.length >= 3 && n.every(Number.isFinite) ? (n[0] * 3 + n[1]) / Math.max(1, (n[0] + n[1] + n[2]) * 3) : .5; };
+            const delta = recordScore(homeRecord) - recordScore(awayRecord);
+            const pdi = Math.min(.88, Math.max(.42, .55 + Math.abs(delta) * .55));
+            const signal = completed ? "已完场" : inProgress ? "进行中" : delta > .12 ? "主队倾向" : delta < -.12 ? "客队倾向" : "均衡 / 防平";
+            const risk = !homeRecord || !awayRecord ? "C" : Math.abs(delta) < .06 ? "C" : "B";
+            return { league: label, group, tier, state: completed ? "post" : inProgress ? "live" : "pre", time: new Intl.DateTimeFormat("zh-CN", { timeZone: "Asia/Shanghai", month: "2-digit", day: "2-digit", hour: "2-digit", minute: "2-digit", hour12: false }).format(new Date(event.date)), home: home?.team?.displayName || "TBD", away: away?.team?.displayName || "TBD", dq: homeRecord && awayRecord ? "B" : "C", edge: delta ? `${delta > 0 ? '+' : ''}${(delta * 100).toFixed(1)}%` : "—", risk, signal, score: inProgress || completed ? `${home?.score ?? 0}–${away?.score ?? 0}` : "—", pdi: Number(pdi.toFixed(2)), draw: Math.abs(delta) < .06 ? "中度" : "轻度", odds: ["—", "—", "—"], status };
           });
         }));
-        const matches = results.flat().sort((a, b) => a.time.localeCompare(b.time)).slice(0, 40);
-        return Response.json({ matches, updatedAt: new Date().toISOString(), source: "ESPN public scoreboard" }, { headers: { "Cache-Control": "public, max-age=120, s-maxage=300" } });
+        const matches = settled.flatMap(result => result.status === "fulfilled" ? result.value : []).sort((a, b) => a.time.localeCompare(b.time)).slice(0, 160);
+        return Response.json({ matches, updatedAt: new Date().toISOString(), source: "ESPN public scoreboard", sourceHealth: { requested: leagues.length, succeeded: settled.filter(x => x.status === "fulfilled").length } }, { headers: { "Cache-Control": "public, max-age=120, s-maxage=300" } });
       } catch {
         return Response.json({ error: "Football data source unavailable" }, { status: 502, headers: { "Cache-Control": "no-store" } });
       }
