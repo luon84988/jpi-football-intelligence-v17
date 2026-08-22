@@ -30,6 +30,32 @@ const worker = {
     const url = new URL(request.url);
 
     if (url.pathname === "/api/football/live") {
+      try {
+        const officialUrl = "https://webapi.sporttery.cn/gateway/uniform/football/getMatchCalculatorV1.qry?channel=c&poolCode=had,hhad";
+        const officialResponse = await fetch(officialUrl, { headers: { "User-Agent": "Mozilla/5.0 (iPhone; CPU iPhone OS 17_5 like Mac OS X) AppleWebKit/605.1.15 Version/17.5 Mobile/15E148 Safari/604.1", "Accept": "application/json, text/javascript, */*; q=0.01", "Referer": "https://m.sporttery.cn/mjc/jsq/zqspf/", "Origin": "https://m.sporttery.cn", "X-Requested-With": "XMLHttpRequest" } });
+        if (officialResponse.ok) {
+          const official = await officialResponse.json() as any;
+          const groups = official?.value?.matchInfoList;
+          if (Array.isArray(groups)) {
+            const matches = groups.flatMap((group: any) => (group.subMatchList || []).map((item: any) => {
+              const hadOdds = [item.had?.h, item.had?.d, item.had?.a].map((v: any) => Number(v));
+              const hhadOdds = [item.hhad?.h, item.hhad?.d, item.hhad?.a].map((v: any) => Number(v));
+              const validHad = hadOdds.every((v: number) => Number.isFinite(v) && v > 1);
+              const inverse = validHad ? hadOdds.map((v: number) => 1 / v) : [0, 0, 0];
+              const total = inverse.reduce((a: number, b: number) => a + b, 0);
+              const probabilities = total ? inverse.map((v: number) => v / total) : [0, 0, 0];
+              const labels = ["主队倾向", "均衡 / 防平", "客队倾向"];
+              const maxIndex = probabilities.indexOf(Math.max(...probabilities));
+              const pdi = total ? Math.max(...probabilities) : .5;
+              const handicap = item.hhad?.goalLine || "";
+              const hhadText = hhadOdds.every((v: number) => Number.isFinite(v) && v > 1) ? hhadOdds.map((v: number) => v.toFixed(2)).join("/") : "未开售";
+              const matchNum = item.matchNumStr || `${item.matchWeek || ""}${String(item.matchNum || "").slice(-3)}`;
+              return { league: item.leagueAbbName, group: /日|韩/.test(item.leagueAbbName) ? "日韩联赛" : /欧冠|欧联|欧协/.test(item.leagueAbbName) ? "欧洲洲际" : "竞彩赛事", tier: "竞彩", state: item.matchStatus === "Selling" ? "pre" : "pre", time: `${item.matchDate?.slice(5).replace("-", "/")} ${item.matchTime?.slice(0, 5)}`, home: item.homeTeamAbbName, away: item.awayTeamAbbName, dq: validHad ? "A" : "C", edge: total ? `${((1 / total) * 100).toFixed(1)}%返还` : "—", risk: validHad ? "B" : "D", signal: validHad ? labels[maxIndex] : "赔率未开售", score: "—", pdi: Number(pdi.toFixed(2)), draw: `让${handicap || "0"} ${hhadText}`, odds: validHad ? hadOdds.map((v: number) => v.toFixed(2)) : ["—", "—", "—"], status: `${matchNum} · ${validHad ? hadOdds.map((v: number) => v.toFixed(2)).join("/") : "未开售"}`, sourceEventId: String(item.matchId), salesDate: item.businessDate || group.businessDate, matchNum, handicap, hhadOdds: hhadText, sellStatus: item.sellStatus };
+            }));
+            if (matches.length) return Response.json({ matches, updatedAt: new Date().toISOString(), source: "中国体育彩票官方竞彩", sourceHealth: { requested: 1, succeeded: 1, hasData: true, officialCount: matches.length } }, { headers: { "Cache-Control": "public, max-age=60, s-maxage=180" } });
+          }
+        }
+      } catch { /* Continue to public fixture fallbacks. */ }
       const leagues = [
         ["日职", "jpn.1", "日韩联赛", "一级"], ["韩K职", "kor.1", "日韩联赛", "一级"],
         ["英超", "eng.1", "欧洲顶级", "一级"], ["西甲", "esp.1", "欧洲顶级", "一级"], ["意甲", "ita.1", "欧洲顶级", "一级"], ["德甲", "ger.1", "欧洲顶级", "一级"], ["法甲", "fra.1", "欧洲顶级", "一级"], ["荷甲", "ned.1", "欧洲顶级", "一级"], ["葡超", "por.1", "欧洲顶级", "一级"], ["比甲", "bel.1", "欧洲顶级", "一级"], ["苏超", "sco.1", "欧洲顶级", "一级"], ["土超", "tur.1", "欧洲顶级", "一级"],
