@@ -1,0 +1,22 @@
+const runDdl = [
+  `CREATE TABLE IF NOT EXISTS backtest_runs (id TEXT PRIMARY KEY NOT NULL,name TEXT NOT NULL,model_version TEXT NOT NULL,scope_from TEXT,scope_to TEXT,filters_json TEXT NOT NULL DEFAULT '{}',status TEXT NOT NULL DEFAULT 'pending' CHECK(status IN ('pending','running','completed','failed')),sample_size INTEGER NOT NULL DEFAULT 0,started_at TEXT,completed_at TEXT,created_at TEXT NOT NULL)`,
+  `CREATE TABLE IF NOT EXISTS backtest_cases (id INTEGER PRIMARY KEY AUTOINCREMENT NOT NULL,run_id TEXT NOT NULL,prediction_id INTEGER,outcome_id INTEGER,match_id TEXT NOT NULL,league TEXT,kickoff_at TEXT,analysis_status TEXT NOT NULL,data_quality_grade TEXT,risk_grade TEXT,predicted_result TEXT,predicted_handicap TEXT,predicted_total TEXT,predicted_scores_json TEXT NOT NULL DEFAULT '[]',model_probabilities_json TEXT NOT NULL DEFAULT '{}',main_evidence_json TEXT NOT NULL DEFAULT '[]',counter_evidence_json TEXT NOT NULL DEFAULT '[]',risk_evidence_json TEXT NOT NULL DEFAULT '[]',actual_home_goals INTEGER,actual_away_goals INTEGER,actual_result TEXT,result_hit INTEGER,handicap_hit INTEGER,total_hit INTEGER,score_distance REAL,brier_score REAL,log_loss REAL,pnl_units REAL,error_category TEXT,error_details_json TEXT NOT NULL DEFAULT '{}',review_status TEXT NOT NULL DEFAULT 'pending' CHECK(review_status IN ('pending','settled','reviewed','excluded')),reviewed_at TEXT,created_at TEXT NOT NULL,updated_at TEXT NOT NULL,FOREIGN KEY(run_id) REFERENCES backtest_runs(id) ON DELETE CASCADE,FOREIGN KEY(prediction_id) REFERENCES analysis_predictions(id),FOREIGN KEY(outcome_id) REFERENCES analysis_outcomes(id),UNIQUE(run_id,match_id))`,
+  `CREATE TABLE IF NOT EXISTS backtest_metrics (id INTEGER PRIMARY KEY AUTOINCREMENT NOT NULL,run_id TEXT NOT NULL,dimension_type TEXT NOT NULL,dimension_value TEXT NOT NULL,sample_size INTEGER NOT NULL,result_hit_rate REAL,handicap_hit_rate REAL,total_hit_rate REAL,exact_score_hit_rate REAL,average_score_distance REAL,brier_score REAL,log_loss REAL,roi REAL,max_drawdown REAL,calibration_json TEXT NOT NULL DEFAULT '{}',created_at TEXT NOT NULL,FOREIGN KEY(run_id) REFERENCES backtest_runs(id) ON DELETE CASCADE,UNIQUE(run_id,dimension_type,dimension_value))`,
+  `CREATE TABLE IF NOT EXISTS learning_updates (id INTEGER PRIMARY KEY AUTOINCREMENT NOT NULL,run_id TEXT NOT NULL,case_id INTEGER,rule_code TEXT NOT NULL,error_category TEXT NOT NULL,old_value_json TEXT NOT NULL DEFAULT '{}',proposed_value_json TEXT NOT NULL DEFAULT '{}',evidence_json TEXT NOT NULL DEFAULT '[]',status TEXT NOT NULL DEFAULT 'proposed' CHECK(status IN ('proposed','approved','rejected','applied','reverted')),approved_by TEXT,approved_at TEXT,applied_at TEXT,created_at TEXT NOT NULL,FOREIGN KEY(run_id) REFERENCES backtest_runs(id) ON DELETE CASCADE,FOREIGN KEY(case_id) REFERENCES backtest_cases(id) ON DELETE SET NULL)`,
+]
+
+export async function ensureBacktestDatabase(db: D1Database) {
+  for (const statement of runDdl) await db.prepare(statement).run()
+}
+
+export async function getBacktestOverview(db: D1Database) {
+  await ensureBacktestDatabase(db)
+  const [runs, cases, metrics, errors, learning] = await Promise.all([
+    db.prepare(`SELECT id,name,model_version,status,sample_size,scope_from,scope_to,started_at,completed_at,created_at FROM backtest_runs ORDER BY created_at DESC LIMIT 50`).all(),
+    db.prepare(`SELECT COUNT(*) total,SUM(CASE WHEN review_status='reviewed' THEN 1 ELSE 0 END) reviewed,AVG(result_hit) result_hit_rate,AVG(handicap_hit) handicap_hit_rate,AVG(total_hit) total_hit_rate,AVG(score_distance) average_score_distance,AVG(brier_score) brier_score,AVG(log_loss) log_loss,SUM(pnl_units) pnl_units FROM backtest_cases WHERE review_status<>'excluded'`).first(),
+    db.prepare(`SELECT run_id,dimension_type,dimension_value,sample_size,result_hit_rate,handicap_hit_rate,total_hit_rate,exact_score_hit_rate,average_score_distance,brier_score,log_loss,roi,max_drawdown FROM backtest_metrics ORDER BY created_at DESC LIMIT 200`).all(),
+    db.prepare(`SELECT COALESCE(error_category,'unclassified') error_category,COUNT(*) count FROM backtest_cases WHERE review_status='reviewed' GROUP BY COALESCE(error_category,'unclassified') ORDER BY count DESC`).all(),
+    db.prepare(`SELECT status,COUNT(*) count FROM learning_updates GROUP BY status ORDER BY status`).all(),
+  ])
+  return { runs: runs.results || [], summary: cases || {}, metrics: metrics.results || [], errorBreakdown: errors.results || [], learningStatus: learning.results || [] }
+}

@@ -10,6 +10,8 @@ import { BOOKMAKERS, ensureOddsDatabase, marketAttitude } from "./odds-database"
 import { SYSTEM_AUDIT } from "./rule-audit";
 import { VALUE_RULES } from "./value-library";
 import { ensureSourceDatabase, refreshApiFootball } from "./source-database";
+import { getBacktestOverview } from "./backtest-database";
+import { getPlayerStatistics } from "./player-statistics-database";
 
 interface Env {
   ASSETS: Fetcher;
@@ -74,6 +76,8 @@ const worker = {
     if(url.pathname==="/api/data-rules")return Response.json(PUBLIC_DATA_RULES,{headers:{"Cache-Control":"public, max-age=3600, s-maxage=86400"}});
     if(url.pathname==="/api/system/audit")return Response.json(SYSTEM_AUDIT,{headers:{"Cache-Control":"no-store"}});
     if(url.pathname==="/api/value-library")return Response.json({rules:VALUE_RULES,records:[],count:0,status:"WATCH_ONLY",warning:"模型尚未完成500场校准且缺少收盘赔率，当前不生成正式价值候选"},{headers:{"Cache-Control":"no-store"}});
+    if(url.pathname==="/api/backtest/overview"){try{return Response.json(await getBacktestOverview(env.DB),{headers:{"Cache-Control":"no-store"}})}catch(error){return Response.json({error:"BACKTEST_DATABASE_UNAVAILABLE",message:error instanceof Error?error.message:"Unknown error"},{status:503,headers:{"Cache-Control":"no-store"}})}}
+    if(url.pathname==="/api/players/statistics"){try{return Response.json(await getPlayerStatistics(env.DB,url),{headers:{"Cache-Control":"no-store"}})}catch(error){return Response.json({error:"PLAYER_STATISTICS_UNAVAILABLE",message:error instanceof Error?error.message:"Unknown error"},{status:503,headers:{"Cache-Control":"no-store"}})}}
     if(url.pathname==="/api/data-sources"){const sources=env.DB?await ensureSourceDatabase(env.DB):[];return Response.json({sources,count:sources.length,storage:env.DB?"D1":"unavailable",policy:{priority:"官方/授权API优先",failure:"失败不得清空或覆盖最后有效快照",secrets:"仅服务端环境变量",refresh:"按各源refresh_minutes缓存"}},{headers:{"Cache-Control":"no-store"}})}
     if(url.pathname==="/api/odds/market"){let data:any,storage="D1",refresh:any=null;try{await ensureOddsDatabase(env.DB);refresh=await refreshApiFootball(env.DB,env.API_FOOTBALL_KEY,url.searchParams.get("date")||undefined);data=await ensureOddsDatabase(env.DB)}catch{data={bookmakers:BOOKMAKERS,europeanOdds:[],asianLines:[]};storage="seed_fallback"}const matchId=url.searchParams.get("matchId"),bookmaker=url.searchParams.get("bookmaker"),eu=data.europeanOdds.filter((x:any)=>(!matchId||x.match_id===matchId)&&(!bookmaker||x.bookmaker===bookmaker)),asian=data.asianLines.filter((x:any)=>(!matchId||x.match_id===matchId)&&(!bookmaker||x.bookmaker===bookmaker));return Response.json({bookmakers:bookmaker?data.bookmakers.filter((x:any)=>x.code===bookmaker):data.bookmakers,europeanOdds:eu,asianLines:asian,attitude:marketAttitude([]),storage,refresh,definitions:{european:"去水胜平负概率、返还率与超额利润率",asian:"开盘/即时盘口和主客水位变化",regionalPreference:"博彩公司主要市场标签；无成交量时不推断真实地区资金流"}})}
 
