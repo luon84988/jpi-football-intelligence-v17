@@ -8,6 +8,7 @@ import { ensureTeamDatabase, seedTeamData } from "./team-database";
 import { PUBLIC_DATA_RULES } from "./public-data-rules";
 import { BOOKMAKERS, ensureOddsDatabase, marketAttitude } from "./odds-database";
 import { SYSTEM_AUDIT } from "./rule-audit";
+import { VALUE_RULES } from "./value-library";
 
 interface Env {
   ASSETS: Fetcher;
@@ -69,6 +70,7 @@ const worker = {
     const url = new URL(request.url);
     if(url.pathname==="/api/data-rules")return Response.json(PUBLIC_DATA_RULES,{headers:{"Cache-Control":"public, max-age=3600, s-maxage=86400"}});
     if(url.pathname==="/api/system/audit")return Response.json(SYSTEM_AUDIT,{headers:{"Cache-Control":"no-store"}});
+    if(url.pathname==="/api/value-library")return Response.json({rules:VALUE_RULES,records:[],count:0,status:"WATCH_ONLY",warning:"模型尚未完成500场校准且缺少收盘赔率，当前不生成正式价值候选"},{headers:{"Cache-Control":"no-store"}});
     if(url.pathname==="/api/odds/market"){let data:any,storage="D1";try{data=await ensureOddsDatabase(env.DB)}catch{data={bookmakers:BOOKMAKERS,europeanOdds:[],asianLines:[]};storage="seed_fallback"}const matchId=url.searchParams.get("matchId"),eu=data.europeanOdds.filter((x:any)=>!matchId||x.match_id===matchId),asian=data.asianLines.filter((x:any)=>!matchId||x.match_id===matchId);return Response.json({bookmakers:data.bookmakers,europeanOdds:eu,asianLines:asian,attitude:marketAttitude([]),storage,definitions:{european:"去水胜平负概率、返还率与超额利润率",asian:"开盘/即时盘口和主客水位变化",regionalPreference:"博彩公司主要市场标签；无成交量时不推断真实地区资金流"}})}
 
     if (url.pathname === "/api/leagues") {
