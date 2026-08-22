@@ -2,6 +2,7 @@
 import { handleImageOptimization, DEFAULT_DEVICE_SIZES, DEFAULT_IMAGE_SIZES } from "vinext/server/image-optimization";
 import handler from "vinext/server/app-router-entry";
 import { SPORTTERY_SNAPSHOT } from "./sporttery-snapshot";
+import { analyzeStyleMatchup } from "./style-rules";
 
 interface Env {
   ASSETS: Fetcher;
@@ -25,7 +26,7 @@ const poisson = (goals: number, lambda: number) => {
   return Math.exp(-lambda) * Math.pow(lambda, goals) / factorial;
 };
 
-const scoreModel = (had: number[], hhad: number[], handicap: number) => {
+const scoreModel = (had: number[], hhad: number[], handicap: number, league: string) => {
   if (![...had, ...hhad].every(v => Number.isFinite(v) && v > 1)) return null;
   const normalize = (odds: number[]) => { const inv = odds.map(v => 1 / v); const sum = inv.reduce((a, b) => a + b, 0); return inv.map(v => v / sum); };
   const target = normalize(had), handicapTarget = normalize(hhad); let best = { error: Infinity, homeXg: 0, awayXg: 0 };
@@ -35,10 +36,13 @@ const scoreModel = (had: number[], hhad: number[], handicap: number) => {
     const error = outcome.reduce((sum, value, i) => sum + Math.pow(value - target[i], 2), 0) + adjusted.reduce((sum, value, i) => sum + Math.pow(value - handicapTarget[i], 2), 0) * .8;
     if (error < best.error) best = { error, homeXg, awayXg };
   }
+  const style = analyzeStyleMatchup(league, target, handicap);
+  const adjustedHomeXg = Math.max(.2, best.homeXg * (1 + style.adjustment.home));
+  const adjustedAwayXg = Math.max(.2, best.awayXg * (1 + style.adjustment.away));
   const scores: Array<{ score: string; probability: number }> = [];
-  for (let h = 0; h <= 7; h++) for (let a = 0; a <= 7; a++) scores.push({ score: `${h}–${a}`, probability: poisson(h, best.homeXg) * poisson(a, best.awayXg) });
+  for (let h = 0; h <= 7; h++) for (let a = 0; a <= 7; a++) scores.push({ score: `${h}–${a}`, probability: poisson(h, adjustedHomeXg) * poisson(a, adjustedAwayXg) });
   scores.sort((a, b) => b.probability - a.probability);
-  return { homeXg: Number(best.homeXg.toFixed(2)), awayXg: Number(best.awayXg.toFixed(2)), topScores: scores.slice(0, 3).map(x => ({ score: x.score, probability: Number(x.probability.toFixed(4)) })), confidence: Number(scores[0].probability.toFixed(4)), fitError: Number(best.error.toFixed(5)) };
+  return { homeXg: Number(adjustedHomeXg.toFixed(2)), awayXg: Number(adjustedAwayXg.toFixed(2)), marketHomeXg: Number(best.homeXg.toFixed(2)), marketAwayXg: Number(best.awayXg.toFixed(2)), topScores: scores.slice(0, 3).map(x => ({ score: x.score, probability: Number(x.probability.toFixed(4)) })), confidence: Number(scores[0].probability.toFixed(4)), fitError: Number(best.error.toFixed(5)), style };
 };
 
 const classifyLeague = (league: string) => {
@@ -80,7 +84,8 @@ const worker = {
               const handicap = item.hhad?.goalLine || "";
               const hhadText = hhadOdds.every((v: number) => Number.isFinite(v) && v > 1) ? hhadOdds.map((v: number) => v.toFixed(2)).join("/") : "未开售";
               const matchNum = item.matchNumStr || `${item.matchWeek || ""}${String(item.matchNum || "").slice(-3)}`;
-              return { league: item.leagueAbbName, group: classifyLeague(item.leagueAbbName), tier: "竞彩", state: item.matchStatus === "Selling" ? "pre" : "pre", time: `${item.matchDate?.slice(5).replace("-", "/")} ${item.matchTime?.slice(0, 5)}`, home: item.homeTeamAbbName, away: item.awayTeamAbbName, dq: validHad ? "A" : "C", edge: total ? `${((1 / total) * 100).toFixed(1)}%返还` : "—", risk: validHad ? "B" : "D", signal: validHad ? labels[maxIndex] : "赔率未开售", score: "—", pdi: Number(pdi.toFixed(2)), draw: `让${handicap || "0"} ${hhadText}`, odds: validHad ? hadOdds.map((v: number) => v.toFixed(2)) : ["—", "—", "—"], status: `${matchNum} · ${validHad ? hadOdds.map((v: number) => v.toFixed(2)).join("/") : "未开售"}`, sourceEventId: String(item.matchId), salesDate: item.businessDate || group.businessDate, matchNum, handicap, hhadOdds: hhadText, sellStatus: item.sellStatus };
+              const model = validHad && hhadOdds.every((v: number) => Number.isFinite(v) && v > 1) ? scoreModel(hadOdds, hhadOdds, Number(handicap || 0), item.leagueAbbName) : null;
+              return { league: item.leagueAbbName, group: classifyLeague(item.leagueAbbName), tier: "竞彩", state: item.matchStatus === "Selling" ? "pre" : "pre", time: `${item.matchDate?.slice(5).replace("-", "/")} ${item.matchTime?.slice(0, 5)}`, home: item.homeTeamAbbName, away: item.awayTeamAbbName, dq: validHad ? "A" : "C", edge: total ? `${((1 / total) * 100).toFixed(1)}%返还` : "—", risk: model && model.fitError < .035 ? "B" : validHad ? "C" : "D", signal: validHad ? labels[maxIndex] : "赔率未开售", score: model?.topScores[0]?.score || "—", scoreConfidence: model?.confidence || 0, topScores: model?.topScores || [], homeXg: model?.homeXg ?? null, awayXg: model?.awayXg ?? null, marketHomeXg: model?.marketHomeXg ?? null, marketAwayXg: model?.marketAwayXg ?? null, style: model?.style ?? null, modelFitError: model?.fitError ?? null, pdi: Number(pdi.toFixed(2)), draw: `让${handicap || "0"} ${hhadText}`, odds: validHad ? hadOdds.map((v: number) => v.toFixed(2)) : ["—", "—", "—"], status: `${matchNum} · ${validHad ? hadOdds.map((v: number) => v.toFixed(2)).join("/") : "未开售"}`, sourceEventId: String(item.matchId), salesDate: item.businessDate || group.businessDate, matchNum, handicap, hhadOdds: hhadText, sellStatus: item.sellStatus };
             }));
             if (matches.length) return Response.json({ matches, updatedAt: new Date().toISOString(), source: "中国体育彩票官方竞彩", sourceHealth: { requested: 1, succeeded: 1, hasData: true, officialCount: matches.length } }, { headers: { "Cache-Control": "public, max-age=60, s-maxage=180" } });
           }
@@ -91,8 +96,8 @@ const worker = {
         const matches = SPORTTERY_SNAPSHOT.map((item) => {
           const hadOdds = [item.hadH, item.hadD, item.hadA].map(Number);
           const validHad = hadOdds.every((v) => Number.isFinite(v) && v > 1); const inverse = validHad ? hadOdds.map((v) => 1 / v) : [0, 0, 0]; const total = inverse.reduce((a, b) => a + b, 0); const probabilities = total ? inverse.map((v) => v / total) : [0, 0, 0]; const maxIndex = probabilities.indexOf(Math.max(...probabilities));
-          const labels = ["主队倾向", "均衡 / 防平", "客队倾向"]; const hhadText = [item.hhadH, item.hhadD, item.hhadA].filter(Boolean).join("/") || "未开售"; const hhad = [item.hhadH, item.hhadD, item.hhadA].map(Number); const model = validHad ? scoreModel(hadOdds, hhad, Number(item.handicap || 0)) : null;
-          return { league: item.league, group: classifyLeague(item.league), tier: "竞彩", state: "pre", time: `${item.date.slice(5).replace("-", "/")} ${item.time}`, home: item.home, away: item.away, dq: validHad ? "A" : "C", edge: total ? `${((1 / total) * 100).toFixed(1)}%返还` : "—", risk: model && model.fitError < .035 ? "B" : "C", signal: validHad ? labels[maxIndex] : "赔率未开售", score: model?.topScores[0]?.score || "—", scoreConfidence: model?.confidence || 0, topScores: model?.topScores || [], homeXg: model?.homeXg ?? null, awayXg: model?.awayXg ?? null, modelFitError: model?.fitError ?? null, pdi: total ? Number(Math.max(...probabilities).toFixed(2)) : .5, draw: `让${item.handicap || "0"} ${hhadText}`, odds: validHad ? hadOdds.map((v) => v.toFixed(2)) : ["—", "—", "—"], status: `${item.matchNum} · ${validHad ? hadOdds.map((v) => v.toFixed(2)).join("/") : "未开售"}`, sourceEventId: item.matchId, salesDate: item.businessDate, matchNum: item.matchNum, handicap: item.handicap, hhadOdds: hhadText, sellStatus: item.sellStatus };
+          const labels = ["主队倾向", "均衡 / 防平", "客队倾向"]; const hhadText = [item.hhadH, item.hhadD, item.hhadA].filter(Boolean).join("/") || "未开售"; const hhad = [item.hhadH, item.hhadD, item.hhadA].map(Number); const model = validHad ? scoreModel(hadOdds, hhad, Number(item.handicap || 0), item.league) : null;
+          return { league: item.league, group: classifyLeague(item.league), tier: "竞彩", state: "pre", time: `${item.date.slice(5).replace("-", "/")} ${item.time}`, home: item.home, away: item.away, dq: validHad ? "A" : "C", edge: total ? `${((1 / total) * 100).toFixed(1)}%返还` : "—", risk: model && model.fitError < .035 ? "B" : "C", signal: validHad ? labels[maxIndex] : "赔率未开售", score: model?.topScores[0]?.score || "—", scoreConfidence: model?.confidence || 0, topScores: model?.topScores || [], homeXg: model?.homeXg ?? null, awayXg: model?.awayXg ?? null, marketHomeXg: model?.marketHomeXg ?? null, marketAwayXg: model?.marketAwayXg ?? null, style: model?.style ?? null, modelFitError: model?.fitError ?? null, pdi: total ? Number(Math.max(...probabilities).toFixed(2)) : .5, draw: `让${item.handicap || "0"} ${hhadText}`, odds: validHad ? hadOdds.map((v) => v.toFixed(2)) : ["—", "—", "—"], status: `${item.matchNum} · ${validHad ? hadOdds.map((v) => v.toFixed(2)).join("/") : "未开售"}`, sourceEventId: item.matchId, salesDate: item.businessDate, matchNum: item.matchNum, handicap: item.handicap, hhadOdds: hhadText, sellStatus: item.sellStatus };
         });
         return Response.json({ matches, updatedAt: new Date().toISOString(), source: "中国体育彩票官方快照", sourceHealth: { requested: 1, succeeded: 1, hasData: true, officialCount: matches.length, mode: "verified_snapshot" } }, { headers: { "Cache-Control": "public, max-age=300, s-maxage=900" } });
       }
