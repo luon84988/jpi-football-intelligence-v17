@@ -1,0 +1,13 @@
+.valuePanel + .panel { display: none; }
+.valueToolbar { display:flex; align-items:center; justify-content:space-between; padding:10px 14px; border-bottom:1px solid #1a272e; color:#718792; font:10px monospace; }
+.valueHead,.valueRow { display:grid; grid-template-columns:minmax(260px,1.8fr) repeat(5,minmax(78px,.55fr)) minmax(155px,1fr); align-items:center; gap:8px; text-align:left; }
+.valueHead { padding:9px 12px; background:#091017; color:#607681; font:9px monospace; }
+.valueRow { width:100%; padding:11px 12px; border:0; border-top:1px solid #15232b; background:#0c1318; color:#aebdc4; cursor:pointer; }
+.valueRow:hover { background:#0d1d1c; box-shadow:inset 2px 0 #3eddb1; }
+.valueRow b { display:block; color:#d3dfe3; font-size:11px; }
+.valueRow small { display:block; margin-top:4px; color:#687d87; font-size:9px; }
+.valuePos { color:#45dfb4; }
+.valueNeg { color:#ff7b85; }
+.watchBadge { display:inline-block; padding:4px 7px; border:1px solid #a9782f; color:#e4b45d; background:#241d10; font:9px monospace; }
+.valueWarning { padding:12px 14px; border-top:1px solid #4b3a20; background:#17140e; color:#b79965; font-size:10px; line-height:1.6; }
+@media(max-width:800px){.valuePanel{overflow:auto}.valueHead,.valueRow{min-width:900px}}
