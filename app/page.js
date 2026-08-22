@@ -14,10 +14,11 @@ export default function Home(){
  const [region,setRegion]=useState('全部赛事'); const [query,setQuery]=useState('');
  const [view,setView]=useState('市场总览'); const [dialog,setDialog]=useState(null); const [draftMatch,setDraftMatch]=useState(''); const [analysisType,setAnalysisType]=useState('标准分析'); const [notice,setNotice]=useState('');
  const [sync,setSync]=useState({loading:true,live:false,time:null,message:'正在获取比赛数据'});
- const [leagues,setLeagues]=useState([]);
+ const [leagues,setLeagues]=useState([]); const [teamData,setTeamData]=useState({teams:[],players:[]});
  const refresh=async()=>{setSync(s=>({...s,loading:true,message:'正在同步'}));try{const res=await fetch('/api/football/live',{cache:'no-store'});if(!res.ok)throw new Error(`HTTP ${res.status}`);const data=await res.json();if(data.matches?.length){setMatches(data.matches);setActive(0);setSync({loading:false,live:true,time:new Date(data.updatedAt),message:`已同步 ${data.matches.length} 场`})}else throw new Error('暂无可用赛程')}catch{setSync(s=>({...s,loading:false,live:false,message:'实时源不可用，显示回退数据'}))}};
  useEffect(()=>{refresh();const timer=setInterval(refresh,5*60*1000);return()=>clearInterval(timer)},[])
  useEffect(()=>{fetch('/api/leagues').then(r=>r.json()).then(d=>setLeagues(d.leagues||[])).catch(()=>setLeagues([]))},[])
+ useEffect(()=>{Promise.all([fetch('/api/teams').then(r=>r.json()),fetch('/api/players/dynamics').then(r=>r.json())]).then(([t,p])=>setTeamData({teams:t.teams||[],players:p.players||[]})).catch(()=>setTeamData({teams:[],players:[]}))},[])
  const rows=useMemo(()=>{let list=matches.filter(x=>(filter==='全部'||x.risk===filter)&&(region==='全部赛事'||x.group===region)&&(!query||`${x.league}${x.home}${x.away}`.toLowerCase().includes(query.toLowerCase())));if(view==='盘口雷达')list=[...list].sort((a,b)=>(b.pdi||0)-(a.pdi||0));if(view==='平局猎物')list=list.filter(x=>x.signal?.includes('平')||x.topScores?.some(s=>s.score?.split('–')[0]===s.score?.split('–')[1]));return list},[matches,filter,region,query,view]); const m=matches[active]||matches[0]
  const openNew=()=>{setDraftMatch(String(matches[0]?.sourceEventId||0));setAnalysisType('标准分析');setDialog('new')};
  const runAnalysis=()=>{const i=matches.findIndex(x=>String(x.sourceEventId)===draftMatch);if(i>=0)setActive(i);setView(analysisType==='平局分析'?'平局猎物':analysisType==='盘口分析'?'盘口雷达':'比赛分析');setDialog(null);setNotice(`已创建：${analysisType}`);setTimeout(()=>setNotice(''),2500)};
