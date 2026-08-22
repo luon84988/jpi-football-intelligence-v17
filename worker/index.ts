@@ -58,8 +58,23 @@ const worker = {
             return { league: label, group, tier, state: completed ? "post" : inProgress ? "live" : "pre", time: new Intl.DateTimeFormat("zh-CN", { timeZone: "Asia/Shanghai", month: "2-digit", day: "2-digit", hour: "2-digit", minute: "2-digit", hour12: false }).format(new Date(event.date)), home: home?.team?.displayName || "TBD", away: away?.team?.displayName || "TBD", dq: homeRecord && awayRecord ? "B" : "C", edge: delta ? `${delta > 0 ? '+' : ''}${(delta * 100).toFixed(1)}%` : "—", risk, signal, score: inProgress || completed ? `${home?.score ?? 0}–${away?.score ?? 0}` : "—", pdi: Number(pdi.toFixed(2)), draw: Math.abs(delta) < .06 ? "中度" : "轻度", odds: ["—", "—", "—"], status };
           });
         }));
-        const matches = settled.flatMap(result => result.status === "fulfilled" ? result.value : []).sort((a, b) => a.time.localeCompare(b.time)).slice(0, 160);
-        return Response.json({ matches, updatedAt: new Date().toISOString(), source: "ESPN public scoreboard", sourceHealth: { requested: leagues.length, succeeded: settled.filter(x => x.status === "fulfilled").length } }, { headers: { "Cache-Control": "public, max-age=120, s-maxage=300" } });
+        let matches = settled.flatMap(result => result.status === "fulfilled" ? result.value : []).sort((a, b) => a.time.localeCompare(b.time)).slice(0, 160);
+        let source = "ESPN public scoreboard";
+        if (!matches.length) {
+          const sportsDbLeagues = [["英超", "4328", "欧洲顶级", "一级"], ["英冠", "4329", "欧洲次级", "二级"], ["苏超", "4330", "欧洲顶级", "一级"], ["德甲", "4331", "欧洲顶级", "一级"], ["意甲", "4332", "欧洲顶级", "一级"], ["法甲", "4334", "欧洲顶级", "一级"], ["西甲", "4335", "欧洲顶级", "一级"], ["荷甲", "4337", "欧洲顶级", "一级"], ["比甲", "4338", "欧洲顶级", "一级"], ["土超", "4339", "欧洲顶级", "一级"], ["葡超", "4344", "欧洲顶级", "一级"], ["美职足", "4346", "其他联赛", "一级"], ["瑞超", "4347", "欧洲顶级", "一级"]] as const;
+          const salesDate = url.searchParams.get("date") || new Intl.DateTimeFormat("en-CA", { timeZone: "Asia/Shanghai", year: "numeric", month: "2-digit", day: "2-digit" }).format(new Date());
+          const nextDate = new Date(`${salesDate}T00:00:00+08:00`); nextDate.setDate(nextDate.getDate() + 1);
+          const allowedDates = new Set([salesDate, new Intl.DateTimeFormat("en-CA", { timeZone: "Asia/Shanghai", year: "numeric", month: "2-digit", day: "2-digit" }).format(nextDate)]);
+          const fallback = await Promise.allSettled(sportsDbLeagues.map(async ([label, id, group, tier]) => {
+            const response = await fetch(`https://www.thesportsdb.com/api/v1/json/123/eventsnextleague.php?id=${id}`, { headers: { "Accept": "application/json" } });
+            if (!response.ok) return [];
+            const payload = await response.json() as any;
+            return (payload.events || []).filter((event: any) => allowedDates.has(event.dateEvent)).map((event: any) => ({ league: label, group, tier, state: event.strStatus === "NS" ? "pre" : "live", time: new Intl.DateTimeFormat("zh-CN", { timeZone: "Asia/Shanghai", month: "2-digit", day: "2-digit", hour: "2-digit", minute: "2-digit", hour12: false }).format(new Date(`${event.strTimestamp}Z`)), home: event.strHomeTeam, away: event.strAwayTeam, dq: "B", edge: "—", risk: "C", signal: "待赔率分析", score: event.intHomeScore == null ? "—" : `${event.intHomeScore}–${event.intAwayScore}`, pdi: .5, draw: "待评估", odds: ["—", "—", "—"], status: event.strStatus === "NS" ? "未开赛" : event.strStatus, sourceEventId: event.idEvent, venue: event.strVenue, salesDate }));
+          }));
+          matches = fallback.flatMap(result => result.status === "fulfilled" ? result.value : []).sort((a, b) => a.time.localeCompare(b.time)).slice(0, 160);
+          source = "TheSportsDB V1 fallback";
+        }
+        return Response.json({ matches, updatedAt: new Date().toISOString(), source, sourceHealth: { requested: leagues.length, succeeded: settled.filter(x => x.status === "fulfilled").length, hasData: matches.length > 0 } }, { headers: { "Cache-Control": "public, max-age=120, s-maxage=300" } });
       } catch {
         return Response.json({ error: "Football data source unavailable" }, { status: 502, headers: { "Cache-Control": "no-store" } });
       }
