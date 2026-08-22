@@ -9,4 +9,5 @@
 .asianQuote{grid-template-columns:22px minmax(55px,1fr) minmax(65px,1.2fr) minmax(55px,1fr)}
 .oddsDown{color:#24c9a0!important}.oddsUp{color:#f05b71!important}
 .marketMatch .badge{margin-left:8px;vertical-align:middle}
+.sportteryQuote b{color:#d9e5ea;font:11px/1.5 monospace;white-space:nowrap}.sportteryQuote small{color:#647b86}.bookmakerCell .saleOpen{color:#55e0b8}
 @media(max-width:1250px){.marketMatrix{overflow:auto}.marketThead,.marketMatch{min-width:1080px}}
