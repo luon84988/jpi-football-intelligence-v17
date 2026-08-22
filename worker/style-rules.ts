@@ -43,8 +43,8 @@ const RULES = [
 ] as const;
 const clamp = (value: number, min: number, max: number) => Math.min(max, Math.max(min, value));
 
-export function analyzeStyleMatchup(league: string, probabilities: number[], handicap: number) {
-  const leagueStyle = LEAGUE_STYLE_LIBRARY[league] || BASE;
+export function analyzeStyleMatchup(league: string, probabilities: number[], handicap: number, storedProfile?: Partial<LeagueStyle>) {
+  const leagueStyle = { ...(LEAGUE_STYLE_LIBRARY[league] || BASE), ...(storedProfile || {}) } as LeagueStyle;
   const strengthGap = (probabilities[0] || 0) - (probabilities[2] || 0);
   let homeStyle: StyleKey = leagueStyle.defaultStyle, awayStyle: StyleKey = leagueStyle.defaultStyle;
   if (strengthGap > .16 || handicap <= -1) { homeStyle = leagueStyle.press >= 70 ? "高位逼抢" : "控球压迫"; awayStyle = "低位反击"; }
