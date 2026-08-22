@@ -20,6 +20,27 @@ interface ExecutionContext {
   passThroughOnException(): void;
 }
 
+const poisson = (goals: number, lambda: number) => {
+  let factorial = 1; for (let i = 2; i <= goals; i++) factorial *= i;
+  return Math.exp(-lambda) * Math.pow(lambda, goals) / factorial;
+};
+
+const scoreModel = (had: number[], hhad: number[], handicap: number) => {
+  if (![...had, ...hhad].every(v => Number.isFinite(v) && v > 1)) return null;
+  const normalize = (odds: number[]) => { const inv = odds.map(v => 1 / v); const sum = inv.reduce((a, b) => a + b, 0); return inv.map(v => v / sum); };
+  const target = normalize(had), handicapTarget = normalize(hhad); let best = { error: Infinity, homeXg: 0, awayXg: 0 };
+  for (let homeXg = .3; homeXg <= 3.8; homeXg += .1) for (let awayXg = .3; awayXg <= 3.8; awayXg += .1) {
+    const outcome = [0, 0, 0], adjusted = [0, 0, 0];
+    for (let h = 0; h <= 7; h++) for (let a = 0; a <= 7; a++) { const p = poisson(h, homeXg) * poisson(a, awayXg); outcome[h > a ? 0 : h === a ? 1 : 2] += p; const margin = h + handicap - a; adjusted[margin > 0 ? 0 : margin === 0 ? 1 : 2] += p; }
+    const error = outcome.reduce((sum, value, i) => sum + Math.pow(value - target[i], 2), 0) + adjusted.reduce((sum, value, i) => sum + Math.pow(value - handicapTarget[i], 2), 0) * .8;
+    if (error < best.error) best = { error, homeXg, awayXg };
+  }
+  const scores: Array<{ score: string; probability: number }> = [];
+  for (let h = 0; h <= 7; h++) for (let a = 0; a <= 7; a++) scores.push({ score: `${h}–${a}`, probability: poisson(h, best.homeXg) * poisson(a, best.awayXg) });
+  scores.sort((a, b) => b.probability - a.probability);
+  return { homeXg: Number(best.homeXg.toFixed(2)), awayXg: Number(best.awayXg.toFixed(2)), topScores: scores.slice(0, 3).map(x => ({ score: x.score, probability: Number(x.probability.toFixed(4)) })), confidence: Number(scores[0].probability.toFixed(4)), fitError: Number(best.error.toFixed(5)) };
+};
+
 // Image security config. SVG sources with .svg extension auto-skip the
 // optimization endpoint on the client side (served directly, no proxy).
 // To route SVGs through the optimizer (with security headers), set
@@ -62,8 +83,8 @@ const worker = {
         const matches = SPORTTERY_SNAPSHOT.map((item) => {
           const hadOdds = [item.hadH, item.hadD, item.hadA].map(Number);
           const validHad = hadOdds.every((v) => Number.isFinite(v) && v > 1); const inverse = validHad ? hadOdds.map((v) => 1 / v) : [0, 0, 0]; const total = inverse.reduce((a, b) => a + b, 0); const probabilities = total ? inverse.map((v) => v / total) : [0, 0, 0]; const maxIndex = probabilities.indexOf(Math.max(...probabilities));
-          const labels = ["主队倾向", "均衡 / 防平", "客队倾向"]; const hhadText = [item.hhadH, item.hhadD, item.hhadA].filter(Boolean).join("/") || "未开售";
-          return { league: item.league, group: /日|韩/.test(item.league) ? "日韩联赛" : /欧冠|欧联|欧协/.test(item.league) ? "欧洲洲际" : "竞彩赛事", tier: "竞彩", state: "pre", time: `${item.date.slice(5).replace("-", "/")} ${item.time}`, home: item.home, away: item.away, dq: validHad ? "A" : "C", edge: total ? `${((1 / total) * 100).toFixed(1)}%返还` : "—", risk: validHad ? "B" : "D", signal: validHad ? labels[maxIndex] : "赔率未开售", score: "—", pdi: total ? Number(Math.max(...probabilities).toFixed(2)) : .5, draw: `让${item.handicap || "0"} ${hhadText}`, odds: validHad ? hadOdds.map((v) => v.toFixed(2)) : ["—", "—", "—"], status: `${item.matchNum} · ${validHad ? hadOdds.map((v) => v.toFixed(2)).join("/") : "未开售"}`, sourceEventId: item.matchId, salesDate: item.businessDate, matchNum: item.matchNum, handicap: item.handicap, hhadOdds: hhadText, sellStatus: item.sellStatus };
+          const labels = ["主队倾向", "均衡 / 防平", "客队倾向"]; const hhadText = [item.hhadH, item.hhadD, item.hhadA].filter(Boolean).join("/") || "未开售"; const hhad = [item.hhadH, item.hhadD, item.hhadA].map(Number); const model = validHad ? scoreModel(hadOdds, hhad, Number(item.handicap || 0)) : null;
+          return { league: item.league, group: /日|韩/.test(item.league) ? "日韩联赛" : /欧冠|欧联|欧协/.test(item.league) ? "欧洲洲际" : "竞彩赛事", tier: "竞彩", state: "pre", time: `${item.date.slice(5).replace("-", "/")} ${item.time}`, home: item.home, away: item.away, dq: validHad ? "A" : "C", edge: total ? `${((1 / total) * 100).toFixed(1)}%返还` : "—", risk: model && model.fitError < .035 ? "B" : "C", signal: validHad ? labels[maxIndex] : "赔率未开售", score: model?.topScores[0]?.score || "—", scoreConfidence: model?.confidence || 0, topScores: model?.topScores || [], homeXg: model?.homeXg ?? null, awayXg: model?.awayXg ?? null, modelFitError: model?.fitError ?? null, pdi: total ? Number(Math.max(...probabilities).toFixed(2)) : .5, draw: `让${item.handicap || "0"} ${hhadText}`, odds: validHad ? hadOdds.map((v) => v.toFixed(2)) : ["—", "—", "—"], status: `${item.matchNum} · ${validHad ? hadOdds.map((v) => v.toFixed(2)).join("/") : "未开售"}`, sourceEventId: item.matchId, salesDate: item.businessDate, matchNum: item.matchNum, handicap: item.handicap, hhadOdds: hhadText, sellStatus: item.sellStatus };
         });
         return Response.json({ matches, updatedAt: new Date().toISOString(), source: "中国体育彩票官方快照", sourceHealth: { requested: 1, succeeded: 1, hasData: true, officialCount: matches.length, mode: "verified_snapshot" } }, { headers: { "Cache-Control": "public, max-age=300, s-maxage=900" } });
       }
