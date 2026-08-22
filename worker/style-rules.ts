@@ -21,6 +21,17 @@ export const LEAGUE_STYLE_LIBRARY: Record<string, LeagueStyle> = {
   韩K职: { tempo: 65, physical: 80, press: 66, transition: 75, defaultStyle: "直接对抗", note: "高对抗、纵向冲击与快速转换" },
   欧冠: { tempo: 74, physical: 68, press: 74, transition: 72, defaultStyle: "控球压迫", note: "高质量控球与压迫，球队差异较大" },
   欧联: { tempo: 70, physical: 70, press: 68, transition: 74, defaultStyle: "快速转换", note: "跨联赛风格碰撞，转换波动较高" },
+  欧协联: { tempo: 68, physical: 66, press: 65, transition: 72, defaultStyle: "快速转换", note: "跨联赛差异较大，转换与实力差放大波动" },
+  英甲: { tempo: 74, physical: 82, press: 64, transition: 76, defaultStyle: "直接对抗", note: "直接打法、二点球和转换频率较高" },
+  英乙: { tempo: 70, physical: 84, press: 60, transition: 72, defaultStyle: "直接对抗", note: "高对抗与直接进攻，比赛随机性较高" },
+  苏超: { tempo: 72, physical: 80, press: 65, transition: 74, defaultStyle: "直接对抗", note: "纵向推进和身体对抗突出" },
+  比甲: { tempo: 74, physical: 66, press: 70, transition: 76, defaultStyle: "快速转换", note: "开放度和转换速度偏高" },
+  挪超: { tempo: 78, physical: 70, press: 68, transition: 80, defaultStyle: "快速转换", note: "纵向开放、转换快，进球环境偏积极" },
+  瑞超: { tempo: 70, physical: 70, press: 64, transition: 72, defaultStyle: "快速转换", note: "攻防转换较快，整体开放度中高" },
+  丹超: { tempo: 72, physical: 68, press: 70, transition: 74, defaultStyle: "高位逼抢", note: "主动压迫与快速转换并重" },
+  奥甲: { tempo: 80, physical: 66, press: 78, transition: 82, defaultStyle: "高位逼抢", note: "高压迫和高转换使比赛更开放" },
+  瑞士超: { tempo: 73, physical: 64, press: 68, transition: 76, defaultStyle: "快速转换", note: "节奏较快，攻防稳定性相对有限" },
+  土超: { tempo: 62, physical: 72, press: 60, transition: 68, defaultStyle: "均衡", note: "对抗较强，强弱分层会影响比赛开放度" },
 };
 
 const RULES = [
@@ -48,5 +59,10 @@ export function analyzeStyleMatchup(league: string, probabilities: number[], han
   if (leagueStyle.tempo >= 78) { homeDelta += .025; awayDelta += .025; hits.push({ id: "LB-01", text: "高节奏联赛提高双方进球环境" }); }
   if (leagueStyle.tempo <= 45) { homeDelta -= .035; awayDelta -= .035; hits.push({ id: "LB-02", text: "低节奏联赛压低双方进球环境" }); }
   homeDelta = clamp(homeDelta, -.10, .10); awayDelta = clamp(awayDelta, -.10, .10);
-  return { leagueStyle: { league, ...leagueStyle }, homeStyle, awayStyle, adjustment: { home: Number(homeDelta.toFixed(3)), away: Number(awayDelta.toFixed(3)) }, rules: hits.length ? hits : [{ id: "SC-00", text: "未触发显著相克，采用联赛中性基线" }], evidence: "B-（联赛基线 + 赔率强弱代理；待接入球队事件数据升级）" };
+  const overIndex = clamp(leagueStyle.tempo * .38 + leagueStyle.transition * .34 + leagueStyle.press * .18 + (100 - leagueStyle.physical) * .10, 0, 100);
+  const underIndex = clamp(100 - overIndex + (leagueStyle.physical - 50) * .08, 0, 100);
+  const drawIndex = clamp((100 - leagueStyle.tempo) * .38 + (100 - leagueStyle.transition) * .30 + (1 - Math.abs(strengthGap)) * 24 + leagueStyle.physical * .08, 0, 100);
+  const level = (value: number) => value >= 66 ? "高" : value >= 52 ? "中" : "低";
+  const primary = overIndex >= underIndex && overIndex >= drawIndex ? "大比分" : underIndex >= drawIndex ? "小比分" : "平局";
+  return { leagueStyle: { league, ...leagueStyle }, homeStyle, awayStyle, adjustment: { home: Number(homeDelta.toFixed(3)), away: Number(awayDelta.toFixed(3)) }, rules: hits.length ? hits : [{ id: "SC-00", text: "未触发显著相克，采用联赛中性基线" }], tendency: { primary, over: { index: Math.round(overIndex), level: level(overIndex) }, under: { index: Math.round(underIndex), level: level(underIndex) }, draw: { index: Math.round(drawIndex), level: level(drawIndex) }, basis: "联赛球风先验；单场仍由赔率、让球与 xG 校正" }, evidence: "B-（联赛基线 + 赔率强弱代理；待接入球队事件数据升级）" };
 }
