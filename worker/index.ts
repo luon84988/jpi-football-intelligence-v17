@@ -5,6 +5,7 @@ import { SPORTTERY_SNAPSHOT } from "./sporttery-snapshot";
 import { analyzeStyleMatchup } from "./style-rules";
 import { ensureLeagueDatabase, seedRows } from "./league-database";
 import { ensureTeamDatabase, seedTeamData } from "./team-database";
+import { PUBLIC_DATA_RULES } from "./public-data-rules";
 
 interface Env {
   ASSETS: Fetcher;
@@ -64,6 +65,7 @@ const classifyLeague = (league: string) => {
 const worker = {
   async fetch(request: Request, env: Env, ctx: ExecutionContext): Promise<Response> {
     const url = new URL(request.url);
+    if(url.pathname==="/api/data-rules")return Response.json(PUBLIC_DATA_RULES,{headers:{"Cache-Control":"public, max-age=3600, s-maxage=86400"}});
 
     if (url.pathname === "/api/leagues") {
       try {
