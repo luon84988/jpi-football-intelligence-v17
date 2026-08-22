@@ -57,7 +57,8 @@ const worker = {
           }
         }
       } catch { /* Continue to public fixture fallbacks. */ }
-      if (url.searchParams.get("date") === "2026-08-22" && SPORTTERY_SNAPSHOT.length) {
+      const requestedDate = url.searchParams.get("date") || new Intl.DateTimeFormat("en-CA", { timeZone: "Asia/Shanghai", year: "numeric", month: "2-digit", day: "2-digit" }).format(new Date());
+      if (requestedDate === "2026-08-22" && SPORTTERY_SNAPSHOT.length) {
         const matches = SPORTTERY_SNAPSHOT.map((item) => {
           const hadOdds = [item.hadH, item.hadD, item.hadA].map(Number);
           const validHad = hadOdds.every((v) => Number.isFinite(v) && v > 1); const inverse = validHad ? hadOdds.map((v) => 1 / v) : [0, 0, 0]; const total = inverse.reduce((a, b) => a + b, 0); const probabilities = total ? inverse.map((v) => v / total) : [0, 0, 0]; const maxIndex = probabilities.indexOf(Math.max(...probabilities));
