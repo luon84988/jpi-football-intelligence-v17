@@ -6,6 +6,7 @@ import { analyzeStyleMatchup } from "./style-rules";
 import { ensureLeagueDatabase, seedRows } from "./league-database";
 import { ensureTeamDatabase, seedTeamData } from "./team-database";
 import { PUBLIC_DATA_RULES } from "./public-data-rules";
+import { BOOKMAKERS, ensureOddsDatabase, marketAttitude } from "./odds-database";
 
 interface Env {
   ASSETS: Fetcher;
@@ -66,6 +67,7 @@ const worker = {
   async fetch(request: Request, env: Env, ctx: ExecutionContext): Promise<Response> {
     const url = new URL(request.url);
     if(url.pathname==="/api/data-rules")return Response.json(PUBLIC_DATA_RULES,{headers:{"Cache-Control":"public, max-age=3600, s-maxage=86400"}});
+    if(url.pathname==="/api/odds/market"){let data:any,storage="D1";try{data=await ensureOddsDatabase(env.DB)}catch{data={bookmakers:BOOKMAKERS,europeanOdds:[],asianLines:[]};storage="seed_fallback"}const matchId=url.searchParams.get("matchId"),eu=data.europeanOdds.filter((x:any)=>!matchId||x.match_id===matchId),asian=data.asianLines.filter((x:any)=>!matchId||x.match_id===matchId);return Response.json({bookmakers:data.bookmakers,europeanOdds:eu,asianLines:asian,attitude:marketAttitude([]),storage,definitions:{european:"去水胜平负概率、返还率与超额利润率",asian:"开盘/即时盘口和主客水位变化",regionalPreference:"博彩公司主要市场标签；无成交量时不推断真实地区资金流"}})}
 
     if (url.pathname === "/api/leagues") {
       try {
