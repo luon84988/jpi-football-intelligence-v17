@@ -3,6 +3,7 @@ const title='JPi Football Intelligence OS V17.0'
 const description='专业足球智能分析、证据融合、风险控制与回测学习终端。'
 
 export const metadata={
+ metadataBase:new URL('https://jpi-football-intelligence-v17.luonan.chatgpt.site'),
  title,
  description,
  openGraph:{title,description,type:'website',images:[{url:'/og.png',width:1200,height:630,alt:title}]},
