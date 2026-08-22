@@ -1,0 +1,9 @@
+.marketThead,.marketMatch{display:grid;grid-template-columns:82px minmax(155px,.9fr) minmax(260px,1.45fr) minmax(280px,1.55fr) 115px 105px;align-items:center;gap:8px;text-align:left}
+.marketThead{min-height:36px;padding:0 12px;background:#091017;color:#607681;font:9px monospace}
+.marketMatch{width:100%;min-height:70px;padding:8px 12px;background:transparent;border:0;border-top:1px solid #151f25;color:#afbdc4;cursor:pointer}
+.marketMatch:hover,.marketMatch.active{background:#0e1c1d;box-shadow:inset 2px 0 #38d9af}
+.marketMatch span{display:block}.marketMatch small{display:block;color:#657984;margin-top:4px;font-size:9px}.marketMatch>.teams b{color:#d3dde2}
+.marketMatch>.moveCell{padding-right:8px}.moveCell small{white-space:nowrap;line-height:1.45}.moveCell i{display:inline-block;min-width:72px;color:#62dcbc;font-style:normal}.moveCell em{color:#6f8792;font-style:normal;margin:0 3px}
+.marketMatch>.moveCell:nth-child(3) small{color:#8dc6e5}.marketMatch>.moveCell:nth-child(4) small{color:#e1bd79}
+.marketMatch .badge{margin-left:8px;vertical-align:middle}
+@media(max-width:1250px){.marketMatrix{overflow:auto}.marketThead,.marketMatch{min-width:1050px}}
