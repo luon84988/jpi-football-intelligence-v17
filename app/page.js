@@ -4,11 +4,17 @@ import './market.css'
 import {useEffect,useMemo,useState} from 'react'
 
 const fallbackMatches=[
- {league:'英超',time:'22:00',home:'Northbridge FC',away:'Riverside United',dq:'A',edge:'+8.4%',risk:'B',signal:'主胜',score:'2–1',pdi:0.72,draw:'轻度',odds:['1.78','3.65','4.60']},
- {league:'西甲',time:'00:30',home:'Real Costa',away:'Athletic Norte',dq:'B',edge:'+5.1%',risk:'C',signal:'小 2.5',score:'1–0',pdi:0.41,draw:'中度',odds:['2.08','3.10','3.75']},
- {league:'意甲',time:'02:45',home:'Milano Rosso',away:'Torino Blu',dq:'A',edge:'+11.2%',risk:'A',signal:'主 -0.75',score:'2–0',pdi:0.86,draw:'无',odds:['1.62','3.90','5.70']},
- {league:'德甲',time:'21:30',home:'Rhine 04',away:'Berlin Adler',dq:'C',edge:'—',risk:'D',signal:'回避',score:'—',pdi:0.18,draw:'强预警',odds:['2.34','3.55','2.82']}
+ {league:'英超',time:'22:00',home:'北桥足球俱乐部',away:'河畔联',dq:'A',edge:'+8.4%',risk:'B',signal:'主胜',score:'2–1',pdi:0.72,draw:'轻度',odds:['1.78','3.65','4.60']},
+ {league:'西甲',time:'00:30',home:'皇家海岸',away:'北方竞技',dq:'B',edge:'+5.1%',risk:'C',signal:'小 2.5',score:'1–0',pdi:0.41,draw:'中度',odds:['2.08','3.10','3.75']},
+ {league:'意甲',time:'02:45',home:'米兰红队',away:'都灵蓝队',dq:'A',edge:'+11.2%',risk:'A',signal:'主 -0.75',score:'2–0',pdi:0.86,draw:'无',odds:['1.62','3.90','5.70']},
+ {league:'德甲',time:'21:30',home:'莱茵04',away:'柏林雄鹰',dq:'C',edge:'—',risk:'D',signal:'回避',score:'—',pdi:0.18,draw:'强预警',odds:['2.34','3.55','2.82']}
 ]
+const chineseTeamNames={
+ 'Manchester United':'曼联','Manchester City':'曼城','Liverpool':'利物浦','Chelsea':'切尔西','Arsenal':'阿森纳','Tottenham Hotspur':'托特纳姆热刺','Newcastle United':'纽卡斯尔联',
+ 'Real Madrid':'皇家马德里','Barcelona':'巴塞罗那','Atletico Madrid':'马德里竞技','Inter Milan':'国际米兰','AC Milan':'AC米兰','Juventus':'尤文图斯','Bayern Munich':'拜仁慕尼黑','Borussia Dortmund':'多特蒙德','Paris Saint-Germain':'巴黎圣日耳曼'
+}
+const teamName=(name,side='球队')=>{const value=String(name||'').trim();if(!value)return `${side}待定`;if(/[\u3400-\u9fff]/.test(value))return value;return chineseTeamNames[value]||`${side}（中文名待确认）`}
+const localizeMatch=x=>({...x,home:teamName(x.home,'主队'),away:teamName(x.away,'客队')})
 const stages=['数据质量门','球队实力','球员影响力','战意指数 MDI','赛程轮换 SRS','联赛球风相克','理论盘口','亚盘审计','Bet365 分歧','泊松进球','平局猎物','证据融合','风险控制','输出引擎','回测引擎','持续学习']
 const changeClass=(now,open)=>Number(now)<Number(open)?'oddsDown':Number(now)>Number(open)?'oddsUp':''
 const EuLine=({row,base,label})=><div className="quoteLine"><i>{label}</i>{row?<>{['home_odds','draw_odds','away_odds'].map(k=><b key={k} className={base?changeClass(row[k],base[k]):''}>{Number(row[k]).toFixed(2)}</b>)}</>:<em>待接入</em>}</div>
@@ -22,7 +28,7 @@ export default function Home(){
  const [leagues,setLeagues]=useState([]); const [teamData,setTeamData]=useState({teams:[],players:[]});
  const [valueFilter,setValueFilter]=useState('全部'); const [valueRules,setValueRules]=useState(null);
  const [marketOdds,setMarketOdds]=useState({bookmakers:[],europeanOdds:[],asianLines:[]});
- const refresh=async()=>{setSync(s=>({...s,loading:true,message:'正在同步'}));try{const res=await fetch('/api/football/live',{cache:'no-store'});if(!res.ok)throw new Error(`HTTP ${res.status}`);const data=await res.json();if(data.matches?.length){setMatches(data.matches);setActive(0);setSync({loading:false,live:true,time:new Date(data.updatedAt),message:`已同步 ${data.matches.length} 场`})}else throw new Error('暂无可用赛程')}catch{setSync(s=>({...s,loading:false,live:false,message:'实时源不可用，显示回退数据'}))}};
+ const refresh=async()=>{setSync(s=>({...s,loading:true,message:'正在同步'}));try{const res=await fetch('/api/football/live',{cache:'no-store'});if(!res.ok)throw new Error(`HTTP ${res.status}`);const data=await res.json();if(data.matches?.length){setMatches(data.matches.map(localizeMatch));setActive(0);setSync({loading:false,live:true,time:new Date(data.updatedAt),message:`已同步 ${data.matches.length} 场`})}else throw new Error('暂无可用赛程')}catch{setSync(s=>({...s,loading:false,live:false,message:'实时源不可用，显示回退数据'}))}};
  useEffect(()=>{refresh();const timer=setInterval(refresh,5*60*1000);return()=>clearInterval(timer)},[])
  useEffect(()=>{fetch('/api/leagues').then(r=>r.json()).then(d=>setLeagues(d.leagues||[])).catch(()=>setLeagues([]))},[])
  useEffect(()=>{Promise.all([fetch('/api/teams').then(r=>r.json()),fetch('/api/players/dynamics').then(r=>r.json())]).then(([t,p])=>setTeamData({teams:t.teams||[],players:p.players||[]})).catch(()=>setTeamData({teams:[],players:[]}))},[])
