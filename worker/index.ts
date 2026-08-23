@@ -12,6 +12,7 @@ import { VALUE_RULES } from "./value-library";
 import { ensureSourceDatabase, refreshApiFootball } from "./source-database";
 import { getBacktestOverview } from "./backtest-database";
 import { getPlayerStatistics } from "./player-statistics-database";
+import { readLiveFootballCache, saveLiveFootballCache } from "./live-football-cache";
 
 interface Env {
   ASSETS: Fetcher;
@@ -37,7 +38,7 @@ const poisson = (goals: number, lambda: number) => {
   return Math.exp(-lambda) * Math.pow(lambda, goals) / factorial;
 };
 
-const scoreModel = (had: number[], hhad: number[], handicap: number, league: string, storedProfile?: any) => {
+const scoreModel = (had: number[], hhad: number[], handicap: number, league: string, storedProfile?: any, matchup?: any) => {
   if (![...had, ...hhad].every(v => Number.isFinite(v) && v > 1)) return null;
   const normalize = (odds: number[]) => { const inv = odds.map(v => 1 / v); const sum = inv.reduce((a, b) => a + b, 0); return inv.map(v => v / sum); };
   const target = normalize(had), handicapTarget = normalize(hhad); let best = { error: Infinity, homeXg: 0, awayXg: 0 };
@@ -47,7 +48,7 @@ const scoreModel = (had: number[], hhad: number[], handicap: number, league: str
     const error = outcome.reduce((sum, value, i) => sum + Math.pow(value - target[i], 2), 0) + adjusted.reduce((sum, value, i) => sum + Math.pow(value - handicapTarget[i], 2), 0) * .8;
     if (error < best.error) best = { error, homeXg, awayXg };
   }
-  const style = analyzeStyleMatchup(league, target, handicap, storedProfile);
+  const style = analyzeStyleMatchup(league, target, handicap, storedProfile, matchup);
   const adjustedHomeXg = Math.max(.2, best.homeXg * (1 + style.adjustment.home));
   const adjustedAwayXg = Math.max(.2, best.awayXg * (1 + style.adjustment.away));
   const scores: Array<{ score: string; probability: number }> = [];
@@ -95,8 +96,9 @@ const worker = {
     if(url.pathname==="/api/teams"||url.pathname==="/api/players/dynamics"){let data:any,storage="D1";try{data=await ensureTeamDatabase(env.DB)}catch{data=seedTeamData();storage="seed_fallback"}if(url.pathname==="/api/players/dynamics")return Response.json({players:data.players,count:data.players.length,storage,warning:data.players.length?null:"尚未接入权威球员动态源，不生成虚假伤停记录"});const league=url.searchParams.get("league"),rankings=league?data.rankings.filter((x:any)=>x.league===league):data.rankings,strengthMap=new Map(data.strengths.map((x:any)=>[x.team_name,x]));return Response.json({teams:rankings.map((x:any)=>({...x,strength:strengthMap.get(x.name)||null})),count:rankings.length,storage,rankingDefinition:{official_rank:"官方联赛排名",system_rank:"综合排名",market_rating:"当期竞彩去水概率代理，仅用于冷启动"}})}
 
     if (url.pathname === "/api/football/live") {
-      let leagueProfiles = new Map<string, any>();
+      let leagueProfiles = new Map<string, any>(), teamStrengths = new Map<string, any>();
       try { const rows = await ensureLeagueDatabase(env.DB); leagueProfiles = new Map(rows.map((x: any) => [x.name, { tempo:x.tempo, physical:x.physical, press:x.press, transition:x.transition, defaultStyle:x.style, note:x.style_note }])); } catch { /* Rule library remains available. */ }
+      try { const data = await ensureTeamDatabase(env.DB); teamStrengths = new Map(data.strengths.map((x: any) => [String(x.team_name), x])); } catch { const data = seedTeamData(); teamStrengths = new Map(data.strengths.map((x: any) => [String(x.team_name), x])); }
       try {
         const officialUrl = "https://webapi.sporttery.cn/gateway/uniform/football/getMatchCalculatorV1.qry?channel=c&poolCode=had,hhad";
         const officialResponse = await fetch(officialUrl, { headers: { "User-Agent": "Mozilla/5.0 (iPhone; CPU iPhone OS 17_5 like Mac OS X) AppleWebKit/605.1.15 Version/17.5 Mobile/15E148 Safari/604.1", "Accept": "application/json, text/javascript, */*; q=0.01", "Referer": "https://m.sporttery.cn/mjc/jsq/zqspf/", "Origin": "https://m.sporttery.cn", "X-Requested-With": "XMLHttpRequest" } });
@@ -117,19 +119,28 @@ const worker = {
               const handicap = item.hhad?.goalLine || "";
               const hhadText = hhadOdds.every((v: number) => Number.isFinite(v) && v > 1) ? hhadOdds.map((v: number) => v.toFixed(2)).join("/") : "未开售";
               const matchNum = item.matchNumStr || `${item.matchWeek || ""}${String(item.matchNum || "").slice(-3)}`;
-              const model = validHad && hhadOdds.every((v: number) => Number.isFinite(v) && v > 1) ? scoreModel(hadOdds, hhadOdds, Number(handicap || 0), item.leagueAbbName, leagueProfiles.get(item.leagueAbbName)) : null;
+              const model = validHad && hhadOdds.every((v: number) => Number.isFinite(v) && v > 1) ? scoreModel(hadOdds, hhadOdds, Number(handicap || 0), item.leagueAbbName, leagueProfiles.get(item.leagueAbbName), { home: teamStrengths.get(item.homeTeamAbbName), away: teamStrengths.get(item.awayTeamAbbName), homeName: item.homeTeamAbbName, awayName: item.awayTeamAbbName }) : null;
               return { league: item.leagueAbbName, group: classifyLeague(item.leagueAbbName), tier: "竞彩", state: item.matchStatus === "Selling" ? "pre" : "pre", time: `${item.matchDate?.slice(5).replace("-", "/")} ${item.matchTime?.slice(0, 5)}`, home: item.homeTeamAbbName, away: item.awayTeamAbbName, dq: validHad ? "A" : "C", edge: total ? `${((1 / total) * 100).toFixed(1)}%返还` : "—", risk: model && model.fitError < .035 ? "B" : validHad ? "C" : "D", signal: validHad ? labels[maxIndex] : "赔率未开售", score: model?.topScores[0]?.score || "—", scoreConfidence: model?.confidence || 0, topScores: model?.topScores || [], homeXg: model?.homeXg ?? null, awayXg: model?.awayXg ?? null, marketHomeXg: model?.marketHomeXg ?? null, marketAwayXg: model?.marketAwayXg ?? null, style: model?.style ?? null, modelFitError: model?.fitError ?? null, pdi: Number(pdi.toFixed(2)), draw: `让${handicap || "0"} ${hhadText}`, odds: validHad ? hadOdds.map((v: number) => v.toFixed(2)) : ["—", "—", "—"], status: `${matchNum} · ${validHad ? hadOdds.map((v: number) => v.toFixed(2)).join("/") : "未开售"}`, sourceEventId: String(item.matchId), salesDate: item.businessDate || group.businessDate, matchNum, handicap, hhadOdds: hhadText, sellStatus: item.sellStatus };
             }));
-            if (matches.length) return Response.json({ matches, updatedAt: new Date().toISOString(), source: "中国体育彩票官方竞彩", sourceHealth: { requested: 1, succeeded: 1, hasData: true, officialCount: matches.length } }, { headers: { "Cache-Control": "public, max-age=60, s-maxage=180" } });
+            if (matches.length) {
+              const payload = { matches, updatedAt: new Date().toISOString(), source: "中国体育彩票官方竞彩", stale: false, sourceHealth: { requested: 1, succeeded: 1, hasData: true, officialCount: matches.length } };
+              ctx.waitUntil(saveLiveFootballCache(env.DB, payload));
+              return Response.json(payload, { headers: { "Cache-Control": "public, max-age=60, s-maxage=180", "X-Football-Data": "sporttery-live" } });
+            }
           }
         }
-      } catch { /* Continue to public fixture fallbacks. */ }
+      } catch { /* Serve the last successful official snapshot below. */ }
+      try {
+        const cached = await readLiveFootballCache(env.DB);
+        if (cached?.matches?.length) return Response.json(cached, { headers: { "Cache-Control": "public, max-age=60, s-maxage=300", "X-Football-Data": "sporttery-last-success" } });
+      } catch { /* A missing cache is handled as a controlled unavailable state. */ }
+      if (url.searchParams.get("allowFallback") !== "1") return Response.json({ matches: [], source: "中国体育彩票官方竞彩", stale: true, error: "OFFICIAL_SOURCE_TEMPORARILY_UNAVAILABLE", message: "官方数据暂不可用，且尚无成功缓存" }, { status: 503, headers: { "Cache-Control": "no-store" } });
       const requestedDate = url.searchParams.get("date") || new Intl.DateTimeFormat("en-CA", { timeZone: "Asia/Shanghai", year: "numeric", month: "2-digit", day: "2-digit" }).format(new Date());
-      if (requestedDate === "2026-08-22" && SPORTTERY_SNAPSHOT.length) {
+      if (requestedDate === "2026-08-23" && SPORTTERY_SNAPSHOT.length) {
         const matches = SPORTTERY_SNAPSHOT.map((item) => {
           const hadOdds = [item.hadH, item.hadD, item.hadA].map(Number);
           const validHad = hadOdds.every((v) => Number.isFinite(v) && v > 1); const inverse = validHad ? hadOdds.map((v) => 1 / v) : [0, 0, 0]; const total = inverse.reduce((a, b) => a + b, 0); const probabilities = total ? inverse.map((v) => v / total) : [0, 0, 0]; const maxIndex = probabilities.indexOf(Math.max(...probabilities));
-          const labels = ["主队倾向", "均衡 / 防平", "客队倾向"]; const hhadText = [item.hhadH, item.hhadD, item.hhadA].filter(Boolean).join("/") || "未开售"; const hhad = [item.hhadH, item.hhadD, item.hhadA].map(Number); const model = validHad ? scoreModel(hadOdds, hhad, Number(item.handicap || 0), item.league, leagueProfiles.get(item.league)) : null;
+          const labels = ["主队倾向", "均衡 / 防平", "客队倾向"]; const hhadText = [item.hhadH, item.hhadD, item.hhadA].filter(Boolean).join("/") || "未开售"; const hhad = [item.hhadH, item.hhadD, item.hhadA].map(Number); const model = validHad ? scoreModel(hadOdds, hhad, Number(item.handicap || 0), item.league, leagueProfiles.get(item.league), { home: teamStrengths.get(item.home), away: teamStrengths.get(item.away), homeName: item.home, awayName: item.away }) : null;
           return { league: item.league, group: classifyLeague(item.league), tier: "竞彩", state: "pre", time: `${item.date.slice(5).replace("-", "/")} ${item.time}`, home: item.home, away: item.away, dq: validHad ? "A" : "C", edge: total ? `${((1 / total) * 100).toFixed(1)}%返还` : "—", risk: model && model.fitError < .035 ? "B" : "C", signal: validHad ? labels[maxIndex] : "赔率未开售", score: model?.topScores[0]?.score || "—", scoreConfidence: model?.confidence || 0, topScores: model?.topScores || [], homeXg: model?.homeXg ?? null, awayXg: model?.awayXg ?? null, marketHomeXg: model?.marketHomeXg ?? null, marketAwayXg: model?.marketAwayXg ?? null, style: model?.style ?? null, modelFitError: model?.fitError ?? null, pdi: total ? Number(Math.max(...probabilities).toFixed(2)) : .5, draw: `让${item.handicap || "0"} ${hhadText}`, odds: validHad ? hadOdds.map((v) => v.toFixed(2)) : ["—", "—", "—"], status: `${item.matchNum} · ${validHad ? hadOdds.map((v) => v.toFixed(2)).join("/") : "未开售"}`, sourceEventId: item.matchId, salesDate: item.businessDate, matchNum: item.matchNum, handicap: item.handicap, hhadOdds: hhadText, sellStatus: item.sellStatus };
         });
         return Response.json({ matches, updatedAt: new Date().toISOString(), source: "中国体育彩票官方快照", sourceHealth: { requested: 1, succeeded: 1, hasData: true, officialCount: matches.length, mode: "verified_snapshot" } }, { headers: { "Cache-Control": "public, max-age=300, s-maxage=900" } });
