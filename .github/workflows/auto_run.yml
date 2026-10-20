@@ -1,6 +1,11 @@
 name: JPi V17 Auto Run
 
 on:
+  pull_request:
+    paths:
+      - 'export_data.py'
+      - 'tests/test_export_data.py'
+      - '.github/workflows/auto_run.yml'
   workflow_dispatch:
   schedule:
     - cron: '30 2 * * *'
@@ -9,7 +14,23 @@ permissions:
   contents: read
 
 jobs:
+  test-export:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: '3.12'
+
+      - name: Test export validation and fail-closed behavior
+        run: python -m unittest discover -s tests -p 'test_export_data.py' -v
+
   run-script:
+    if: github.ref == 'refs/heads/main' && github.event_name != 'pull_request'
+    needs: test-export
     runs-on: ubuntu-latest
     permissions:
       contents: write
