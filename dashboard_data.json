@@ -1,6 +1,10 @@
 {
   "update_time": "-",
   "status": "no_api_key",
-  "summary": {"total_matches": 0, "ev_positive_count": 0, "model_version": "V17.3 Pre-Analysis"},
+  "summary": {
+    "total_matches": 0,
+    "ev_positive_count": 0,
+    "model_version": "V17.3 Pre-Analysis"
+  },
   "matches": []
 }
