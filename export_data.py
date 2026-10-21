@@ -131,7 +131,8 @@ def build_dashboard_payload(payload: dict) -> dict:
             "ev_value": None,
             "recommendation": "观察：未提供独立且已校准的模型概率",
             "match_time": match.get("time"),
-            "kickoff": match.get("time"),
+            "kickoff": None,  # Worker time is month/day and local clock, not an ISO datetime.
+            "kickoff_display": match.get("time"),
             "risk": "待验证",
             "odds": match.get("odds"),
             "data_quality": match.get("dq"),
