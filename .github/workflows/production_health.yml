@@ -1,0 +1,21 @@
+name: JPi Production Health Monitor
+on:
+  workflow_dispatch:
+  schedule:
+    - cron: '17 */2 * * *'
+permissions:
+  contents: read
+jobs:
+  verify-official-feed:
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.12'
+      - name: Check official Worker feed freshness and provenance
+        env:
+          JPI_API_URL: ${{ vars.JPI_API_URL }}
+          MAX_SOURCE_AGE_SECONDS: '1800'
+        run: python scripts/monitor_production.py
