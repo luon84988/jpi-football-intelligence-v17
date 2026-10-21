@@ -102,6 +102,11 @@ def odds_probabilities(raw_odds: object) -> tuple[float, float, float] | None:
 
 
 def build_dashboard_payload(payload: dict) -> dict:
+    if payload.get("source") != "中国体育彩票官方竞彩":
+        raise ExportError("Non-official or fallback data cannot be exported.")
+    health = payload.get("sourceHealth")
+    if not isinstance(health, dict) or health.get("succeeded") != 1 or health.get("hasData") is not True:
+        raise ExportError("Official source health is not verified.")
     rows = []
     skipped = 0
     for match in payload["matches"]:
