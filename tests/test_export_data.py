@@ -55,6 +55,11 @@ class ExportDataTests(unittest.TestCase):
         with self.assertRaises(export_data.ExportError):
             export_data.build_dashboard_payload(payload)
 
+    def test_missing_source_health_rejected(self):
+        payload = {"source": "中国体育彩票官方竞彩", "updatedAt": "2026-10-20T06:30:00Z", "matches": [{"league": "测试", "home": "主", "away": "客", "odds": ["2", "3", "4"]}]}
+        with self.assertRaises(export_data.ExportError):
+            export_data.build_dashboard_payload(payload)
+
     def test_all_invalid_matches_fail_closed(self):
         source = {
             "updatedAt": "2026-10-20T06:30:00Z",
