@@ -34,7 +34,7 @@
                             <div>
                                 <span class="text-xs text-emerald-400 font-bold">${m.league}</span>
                                 <div class="font-bold text-white mt-1">${m.home} vs ${m.away}</div>
-                                <div class="text-xs text-gray-500">${m.kickoff ? new Date(m.kickoff).toLocaleString('zh-CN') : ''}</div>
+                                <div class="text-xs text-gray-500">${m.kickoff_display || (m.kickoff ? new Date(m.kickoff).toLocaleString('zh-CN') : '')}</div>
                             </div>
                             <div class="text-right">
                                 <span class="text-xs bg-emerald-900 text-emerald-300 px-2.5 py-1 rounded-full">${m.recommendation}</span>
