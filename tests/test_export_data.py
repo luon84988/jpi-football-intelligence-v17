@@ -34,7 +34,8 @@ class ExportDataTests(unittest.TestCase):
     def test_market_probabilities_are_not_marked_as_ev(self):
         source = {
             "updatedAt": "2026-10-20T06:30:00Z",
-            "source": "test source",
+            "source": "中国体育彩票官方竞彩",
+            "sourceHealth": {"succeeded": 1, "hasData": True},
             "matches": [{
                 "league": "测试联赛",
                 "home": "主队",
@@ -49,10 +50,16 @@ class ExportDataTests(unittest.TestCase):
         self.assertEqual(output["matches"][0]["probability_basis"], "de-vigged_market_odds")
         self.assertNotIn("+EV", output["matches"][0]["recommendation"])
 
+    def test_fallback_source_rejected(self):
+        payload = {"source": "ESPN fallback", "sourceHealth": {"succeeded": 1, "hasData": True}, "updatedAt": "2026-10-20T06:30:00Z", "matches": [{"league": "测试", "home": "主", "away": "客", "odds": ["2", "3", "4"]}]}
+        with self.assertRaises(export_data.ExportError):
+            export_data.build_dashboard_payload(payload)
+
     def test_all_invalid_matches_fail_closed(self):
         source = {
             "updatedAt": "2026-10-20T06:30:00Z",
-            "source": "test source",
+            "source": "中国体育彩票官方竞彩",
+            "sourceHealth": {"succeeded": 1, "hasData": True},
             "matches": [{
                 "league": "测试联赛",
                 "home": "主队",
