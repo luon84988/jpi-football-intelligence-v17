@@ -26,7 +26,7 @@
                 const list = document.getElementById('match-list');
                 const st = data.status && data.status !== 'ok' ? ` ⚠️ 状态: ${data.status}（显示的是上次有效数据）` : '';
                 document.getElementById('update-time').innerText = `最后更新: ${data.update_time}${st}`;
-                if (!data.matches.length) { list.innerHTML = '<p class="text-sm text-gray-400">未来3天暂无可分析比赛</p>'; return; }
+                if (!data.matches.length) { list.innerHTML = '<p class="text-sm text-gray-400">暂无真实数据：请在仓库 Secrets 中设置 API_KEY 后重新运行 Actions</p>'; return; }
                 const pc = v => v == null ? '-' : (v*100).toFixed(0) + '%';
                 list.innerHTML = data.matches.map(m => `
                     <div class="bg-gray-900 p-4 rounded-xl border border-gray-700">
@@ -41,7 +41,7 @@
                                 <div class="text-xs text-gray-400 mt-1">风险 ${m.risk || '-'}</div>
                             </div>
                         </div>
-                        ${m.prob_home != null ? `<div class="text-xs text-gray-300 mt-2">胜 ${pc(m.prob_home)} · 平 ${pc(m.prob_draw)} · 负 ${pc(m.prob_away)} ｜ 预期进球 ${m.xg_home}-${m.xg_away} ｜ 比分 ${m.scores.join(' / ')} ｜ 大2.5 ${pc(m.over25)}</div>` : ''}
+                        ${m.prob_home != null && m.scores ? `<div class="text-xs text-gray-300 mt-2">胜 ${pc(m.prob_home)} · 平 ${pc(m.prob_draw)} · 负 ${pc(m.prob_away)} ｜ 预期进球 ${m.xg_home}-${m.xg_away} ｜ 比分 ${m.scores.join(' / ')} ｜ 大2.5 ${pc(m.over25)}</div>` : ''}
                     </div>
                 `).join('');
             } catch(e) { console.log("等待数据生成..."); }
