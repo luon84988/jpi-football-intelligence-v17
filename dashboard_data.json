@@ -1,20 +1,21 @@
 {
-    "update_time": "2026-10-20 22:49:29",
-    "summary": {
-        "total_matches": 10,
-        "ev_positive_count": 3,
-        "model_version": "V17.0"
-    },
-    "matches": [
-        {
-            "league": "英超",
-            "home": "阿森纳",
-            "away": "切尔西",
-            "prob_home": 0.55,
-            "prob_draw": 0.25,
-            "prob_away": 0.2,
-            "ev_value": 0.08,
-            "recommendation": "主胜 (+EV)"
-        }
-    ]
+  "update_time": "2026-10-20 22:49:29",
+  "summary": {
+    "total_matches": 10,
+    "ev_positive_count": 3,
+    "model_version": "V17.0"
+  },
+  "matches": [
+    {
+      "league": "英超",
+      "home": "阿森纳",
+      "away": "切尔西",
+      "prob_home": 0.55,
+      "prob_draw": 0.25,
+      "prob_away": 0.2,
+      "ev_value": 0.08,
+      "recommendation": "主胜 (+EV)"
+    }
+  ],
+  "status": "no_api_key"
 }
