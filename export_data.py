@@ -1,150 +1,177 @@
-"""JPi dashboard data exporter (Pre-Analysis, football-data.org).
+#!/usr/bin/env python3
+"""Export a dashboard snapshot from the live JPi Worker API.
 
-Free tier has no odds, so output is strength-based Poisson only:
-no EV, no formal recommendation. If the API fails, the last valid
-dashboard_data.json is kept and only a status field is updated.
+This script deliberately has no mock-data fallback. A failed, stale, or malformed
+source response must never overwrite the last known dashboard snapshot.
 """
+from __future__ import annotations
+
 import json
-import math
 import os
 import sys
-import time
-from datetime import datetime, timedelta, timezone
+from datetime import datetime, timezone
+from pathlib import Path
+from urllib.error import HTTPError, URLError
+from urllib.parse import urlparse
+from urllib.request import Request, urlopen
 
-import requests
-
-BASE = os.environ.get("JPI_API_URL", "").rstrip("/") or "https://api.football-data.org/v4"
-TOKEN = os.environ.get("API_KEY", "").strip()
-OUT = "dashboard_data.json"
-DAYS_AHEAD = 3
-MAX_STANDINGS = 8
-HOME_ADV = 1.10
-LEAGUE_AVG = 1.35
-CST = timezone(timedelta(hours=8))
+OUTPUT = Path(__file__).with_name("dashboard_data.json")
+MAX_AGE_SECONDS = int(os.getenv("MAX_SOURCE_AGE_SECONDS", "1800"))
 
 
-def get(path, params=None):
-    r = requests.get(BASE + path, headers={"X-Auth-Token": TOKEN},
-                     params=params, timeout=30)
-    if r.status_code == 429:
-        time.sleep(65)
-        r = requests.get(BASE + path, headers={"X-Auth-Token": TOKEN},
-                         params=params, timeout=30)
-    r.raise_for_status()
-    return r.json()
+class ExportError(RuntimeError):
+    pass
 
 
-def poisson(k, lam):
-    return math.exp(-lam) * lam ** k / math.factorial(k)
+def source_endpoint(base_url: str) -> str:
+    base_url = base_url.strip().rstrip("/")
+    if not base_url:
+        raise ExportError("JPI_API_URL is empty; configure it as a GitHub Actions repository variable.")
+    parsed = urlparse(base_url)
+    if parsed.scheme not in {"https", "http"} or not parsed.netloc:
+        raise ExportError("JPI_API_URL must be an absolute http(s) URL.")
+    if parsed.path.rstrip("/").endswith("/api/football/live"):
+        return base_url
+    return base_url + "/api/football/live"
 
 
-def score_grid(lh, la, n=7):
-    grid = {(i, j): poisson(i, lh) * poisson(j, la) for i in range(n) for j in range(n)}
-    ph = sum(p for (i, j), p in grid.items() if i > j)
-    pd = sum(p for (i, j), p in grid.items() if i == j)
-    pa = sum(p for (i, j), p in grid.items() if i < j)
-    s = ph + pd + pa
-    top = sorted(grid.items(), key=lambda x: -x[1])[:3]
-    over25 = sum(p for (i, j), p in grid.items() if i + j >= 3) / sum(grid.values())
-    return ph / s, pd / s, pa / s, [f"{i}-{j}" for (i, j), _ in top], over25
+def fetch_live_data(endpoint: str) -> dict:
+    headers = {"Accept": "application/json", "User-Agent": "JPi-V17-dashboard-export/1.0"}
+    api_key = os.getenv("API_KEY", "").strip()
+    if api_key:
+        headers["Authorization"] = f"Bearer {api_key}"
+    request = Request(endpoint, headers=headers, method="GET")
+    try:
+        with urlopen(request, timeout=25) as response:
+            if response.status != 200:
+                raise ExportError(f"Live API returned HTTP {response.status}.")
+            raw = response.read(5_000_001)
+    except HTTPError as exc:
+        raise ExportError(f"Live API returned HTTP {exc.code}.") from exc
+    except (URLError, TimeoutError) as exc:
+        raise ExportError(f"Live API request failed: {exc}") from exc
+    if len(raw) > 5_000_000:
+        raise ExportError("Live API response exceeded the 5 MB safety limit.")
+    try:
+        payload = json.loads(raw.decode("utf-8"))
+    except (UnicodeDecodeError, json.JSONDecodeError) as exc:
+        raise ExportError("Live API did not return valid UTF-8 JSON.") from exc
+    if not isinstance(payload, dict):
+        raise ExportError("Live API payload must be a JSON object.")
+    if payload.get("error") or payload.get("stale") is True:
+        raise ExportError(f"Live API is unavailable or stale: {payload.get('error', 'stale=true')}")
+    if payload.get("source") != "中国体育彩票官方竞彩":
+        raise ExportError("Only current official Sporttery data may be published; fallback or cached sources are rejected.")
+    health = payload.get("sourceHealth")
+    if not isinstance(health, dict) or health.get("succeeded") != 1 or health.get("hasData") is not True:
+        raise ExportError("Official source health is not verified; refusing to publish.")
+    matches = payload.get("matches")
+    if not isinstance(matches, list) or not matches:
+        raise ExportError("Live API returned no matches; refusing to replace the existing snapshot.")
+    updated_at = payload.get("updatedAt")
+    if not isinstance(updated_at, str):
+        raise ExportError("Live API is missing its updatedAt timestamp.")
+    try:
+        timestamp = datetime.fromisoformat(updated_at.replace("Z", "+00:00"))
+        if timestamp.tzinfo is None:
+            timestamp = timestamp.replace(tzinfo=timezone.utc)
+    except ValueError as exc:
+        raise ExportError("Live API updatedAt is not a valid ISO-8601 timestamp.") from exc
+    age = (datetime.now(timezone.utc) - timestamp.astimezone(timezone.utc)).total_seconds()
+    if age < -300:
+        raise ExportError("Live API timestamp is more than five minutes in the future.")
+    if age > MAX_AGE_SECONDS:
+        raise ExportError(f"Live API data is {int(age)} seconds old (limit {MAX_AGE_SECONDS}); refusing to publish stale data.")
+    return payload
 
 
-def build_strength(table):
-    out = {}
-    for row in table:
-        g = row.get("playedGames") or 0
-        if g < 3:
+def odds_probabilities(raw_odds: object) -> tuple[float, float, float] | None:
+    if not isinstance(raw_odds, (list, tuple)) or len(raw_odds) != 3:
+        return None
+    try:
+        odds = [float(value) for value in raw_odds]
+    except (TypeError, ValueError):
+        return None
+    if any(value <= 1 or value != value or value == float("inf") for value in odds):
+        return None
+    inverse = [1.0 / value for value in odds]
+    total = sum(inverse)
+    if total <= 0:
+        return None
+    return tuple(value / total for value in inverse)
+
+
+def build_dashboard_payload(payload: dict) -> dict:
+    if payload.get("source") != "中国体育彩票官方竞彩":
+        raise ExportError("Non-official or fallback data cannot be exported.")
+    health = payload.get("sourceHealth")
+    if not isinstance(health, dict) or health.get("succeeded") != 1 or health.get("hasData") is not True:
+        raise ExportError("Official source health is not verified.")
+    rows = []
+    skipped = 0
+    for match in payload["matches"]:
+        if not isinstance(match, dict):
+            skipped += 1
             continue
-        out[row["team"]["id"]] = (row["goalsFor"] / g, row["goalsAgainst"] / g, g)
-    return out
-
-
-def lean(ph, pd, pa):
-    best = max(("主胜", ph), ("平局", pd), ("客胜", pa), key=lambda x: x[1])
-    if best[1] < 0.42:
-        return "方向不明（预分析）"
-    return f"{best[0]}倾向（预分析）"
-
-
-def main():
-    if not TOKEN:
-        print("API_KEY 未设置，保留旧数据")
-        return mark_status("no_api_key")
-    now = datetime.now(CST)
-    d1 = now.strftime("%Y-%m-%d")
-    d2 = (now + timedelta(days=DAYS_AHEAD)).strftime("%Y-%m-%d")
-    try:
-        ms = get("/matches", {"dateFrom": d1, "dateTo": d2}).get("matches", [])
-    except Exception as e:
-        print("拉取赛程失败:", e)
-        return mark_status(f"fetch_error: {e}")
-
-    ms = [m for m in ms if m.get("status") in ("SCHEDULED", "TIMED")]
-    comps = []
-    for m in ms:
-        c = m["competition"]["code"]
-        if c not in comps:
-            comps.append(c)
-    strength = {}
-    for c in comps[:MAX_STANDINGS]:
-        try:
-            st = get(f"/competitions/{c}/standings")
-            tables = [t for t in st.get("standings", []) if t.get("type") == "TOTAL"]
-            for t in tables:
-                strength.update(build_strength(t["table"]))
-        except Exception as e:
-            print("积分榜失败", c, e)
-        time.sleep(6.5)
-
-    matches = []
-    for m in ms:
-        h, a = m["homeTeam"]["id"], m["awayTeam"]["id"]
-        item = {
-            "league": m["competition"]["name"],
-            "kickoff": m["utcDate"],
-            "home": m["homeTeam"].get("shortName") or m["homeTeam"]["name"],
-            "away": m["awayTeam"].get("shortName") or m["awayTeam"]["name"],
-        }
-        if h in strength and a in strength:
-            hf, ha, _ = strength[h]
-            af, aa, _ = strength[a]
-            lh = max(0.2, (hf / LEAGUE_AVG) * (aa / LEAGUE_AVG) * LEAGUE_AVG * HOME_ADV)
-            la = max(0.2, (af / LEAGUE_AVG) * (ha / LEAGUE_AVG) * LEAGUE_AVG / HOME_ADV)
-            ph, pd, pa, scores, o25 = score_grid(lh, la)
-            item.update(prob_home=round(ph, 3), prob_draw=round(pd, 3), prob_away=round(pa, 3),
-                        xg_home=round(lh, 2), xg_away=round(la, 2), over25=round(o25, 3),
-                        scores=scores, ev_value=None, recommendation=lean(ph, pd, pa),
-                        risk="C")
-        else:
-            item.update(ev_value=None, recommendation="数据不足，不分析", risk="D")
-        matches.append(item)
-
-    data = {
-        "update_time": now.strftime("%Y-%m-%d %H:%M:%S"),
-        "status": "ok",
+        league, home, away = match.get("league"), match.get("home"), match.get("away")
+        probs = odds_probabilities(match.get("odds"))
+        if not all(isinstance(value, str) and value.strip() for value in (league, home, away)) or probs is None:
+            skipped += 1
+            continue
+        rows.append({
+            "match_id": match.get("sourceEventId") or match.get("matchNum"),
+            "league": league,
+            "home": home,
+            "away": away,
+            "prob_home": round(probs[0], 6),
+            "prob_draw": round(probs[1], 6),
+            "prob_away": round(probs[2], 6),
+            "probability_basis": "de-vigged_market_odds",
+            "ev_value": None,
+            "recommendation": "观察：未提供独立且已校准的模型概率",
+            "match_time": match.get("time"),
+            "odds": match.get("odds"),
+            "data_quality": match.get("dq"),
+        })
+    if not rows:
+        raise ExportError("No valid matches with three-way odds were returned; existing dashboard data was preserved.")
+    return {
+        "update_time": datetime.now(timezone.utc).isoformat(timespec="seconds"),
+        "source_updated_at": payload["updatedAt"],
+        "source": payload.get("source", "JPi live football API"),
+        "stale": False,
         "summary": {
-            "total_matches": len(matches),
+            "total_matches": len(rows),
             "ev_positive_count": 0,
-            "model_version": "V17.3 Pre-Analysis (无赔率，仅实力+泊松)",
+            "model_version": "V17.0",
+            "probability_basis": "de-vigged_market_odds; not independent model probabilities",
+            "skipped_invalid_matches": skipped,
         },
-        "matches": matches,
+        "matches": rows,
     }
-    with open(OUT, "w", encoding="utf-8") as f:
-        json.dump(data, f, ensure_ascii=False, indent=2)
-    print(f"完成：{len(matches)} 场")
 
 
-def mark_status(status):
+def main() -> int:
     try:
-        with open(OUT, encoding="utf-8") as f:
-            data = json.load(f)
-    except Exception:
-        data = {"update_time": "-", "summary": {}, "matches": []}
-    data["status"] = status
-    with open(OUT, "w", encoding="utf-8") as f:
-        json.dump(data, f, ensure_ascii=False, indent=2)
-    return 0
+        endpoint = source_endpoint(os.getenv("JPI_API_URL", ""))
+        source_payload = fetch_live_data(endpoint)
+        dashboard_payload = build_dashboard_payload(source_payload)
+        serialized = json.dumps(dashboard_payload, ensure_ascii=False, indent=2) + "\n"
+        temporary = OUTPUT.with_suffix(OUTPUT.suffix + ".tmp")
+        temporary.write_text(serialized, encoding="utf-8")
+        temporary.replace(OUTPUT)
+        print(
+            f"Exported {len(dashboard_payload['matches'])} live matches from {endpoint}; "
+            f"source_updated_at={dashboard_payload['source_updated_at']}."
+        )
+        return 0
+    except ExportError as exc:
+        print(f"ERROR: {exc}", file=sys.stderr)
+        return 2
+    except OSError as exc:
+        print(f"ERROR: File operation failed: {exc}", file=sys.stderr)
+        return 3
 
 
 if __name__ == "__main__":
-    sys.exit(main() or 0)
+    raise SystemExit(main())
