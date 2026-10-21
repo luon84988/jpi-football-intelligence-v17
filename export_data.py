@@ -60,6 +60,11 @@ def fetch_live_data(endpoint: str) -> dict:
         raise ExportError("Live API payload must be a JSON object.")
     if payload.get("error") or payload.get("stale") is True:
         raise ExportError(f"Live API is unavailable or stale: {payload.get('error', 'stale=true')}")
+    if payload.get("source") != "中国体育彩票官方竞彩":
+        raise ExportError("Only current official Sporttery data may be published; fallback or cached sources are rejected.")
+    health = payload.get("sourceHealth")
+    if not isinstance(health, dict) or health.get("succeeded") != 1 or health.get("hasData") is not True:
+        raise ExportError("Official source health is not verified; refusing to publish.")
     matches = payload.get("matches")
     if not isinstance(matches, list) or not matches:
         raise ExportError("Live API returned no matches; refusing to replace the existing snapshot.")
