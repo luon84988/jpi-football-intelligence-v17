@@ -7,6 +7,7 @@ source response must never overwrite the last known dashboard snapshot.
 from __future__ import annotations
 
 import json
+import math
 import os
 import sys
 from datetime import datetime, timezone
@@ -92,7 +93,7 @@ def odds_probabilities(raw_odds: object) -> tuple[float, float, float] | None:
         odds = [float(value) for value in raw_odds]
     except (TypeError, ValueError):
         return None
-    if any(not __import__("math").isfinite(value) or value <= 1 for value in odds):
+    if any(not math.isfinite(value) or value <= 1 for value in odds):
         return None
     inverse = [1.0 / value for value in odds]
     total = sum(inverse)
