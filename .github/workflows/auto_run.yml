@@ -26,6 +26,7 @@ jobs:
       - name: Run export data script
         env:
           API_KEY: ${{ secrets.API_KEY }}
+          JPI_API_URL: ${{ vars.JPI_API_URL }}
         run: |
           python export_data.py
 
