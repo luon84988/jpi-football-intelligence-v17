@@ -52,6 +52,18 @@ jobs:
             exit 1
           fi
 
+      - name: Check Worker API availability
+        env:
+          JPI_API_URL: ${{ vars.JPI_API_URL }}
+        run: |
+          python - <<'PY'
+          import os
+          from export_data import source_endpoint, fetch_live_data
+          endpoint = source_endpoint(os.environ['JPI_API_URL'])
+          payload = fetch_live_data(endpoint)
+          print('Verified fresh official Worker source; matches:', len(payload['matches']))
+          PY
+
       - name: Export and validate live data
         env:
           JPI_API_URL: ${{ vars.JPI_API_URL }}
