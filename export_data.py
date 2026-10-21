@@ -92,7 +92,7 @@ def odds_probabilities(raw_odds: object) -> tuple[float, float, float] | None:
         odds = [float(value) for value in raw_odds]
     except (TypeError, ValueError):
         return None
-    if any(value <= 1 or value != value or value == float("inf") for value in odds):
+    if any(not __import__("math").isfinite(value) or value <= 1 for value in odds):
         return None
     inverse = [1.0 / value for value in odds]
     total = sum(inverse)
@@ -130,6 +130,8 @@ def build_dashboard_payload(payload: dict) -> dict:
             "ev_value": None,
             "recommendation": "观察：未提供独立且已校准的模型概率",
             "match_time": match.get("time"),
+            "kickoff": match.get("time"),
+            "risk": "待验证",
             "odds": match.get("odds"),
             "data_quality": match.get("dq"),
         })
