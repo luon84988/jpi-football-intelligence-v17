@@ -1,5 +1,8 @@
 name: D1 snapshot regression
 on:
+  push:
+    branches:
+      - 'fix/d1-immutable-snapshots-20261022'
   pull_request:
     paths:
       - 'worker/live-football-cache.ts'
