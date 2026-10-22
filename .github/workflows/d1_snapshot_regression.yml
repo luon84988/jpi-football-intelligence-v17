@@ -1,0 +1,21 @@
+name: D1 snapshot regression
+on:
+  pull_request:
+    paths:
+      - 'worker/live-football-cache.ts'
+      - 'worker/index.ts'
+      - 'tests/live-football-cache.test.mjs'
+      - '.github/workflows/d1_snapshot_regression.yml'
+  workflow_dispatch:
+permissions:
+  contents: read
+jobs:
+  d1-snapshots:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+      - name: Verify D1 snapshot logic (mock database)
+        run: node --experimental-strip-types --test tests/live-football-cache.test.mjs
