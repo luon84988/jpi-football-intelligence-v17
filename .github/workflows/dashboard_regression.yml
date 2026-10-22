@@ -1,0 +1,20 @@
+name: Dashboard regression
+on:
+  pull_request:
+    paths:
+      - 'index.html'
+      - 'tests/dashboard-render.test.mjs'
+      - '.github/workflows/dashboard_regression.yml'
+  workflow_dispatch:
+permissions:
+  contents: read
+jobs:
+  dashboard:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+      - name: Verify dashboard rendering safety
+        run: node --test tests/dashboard-render.test.mjs

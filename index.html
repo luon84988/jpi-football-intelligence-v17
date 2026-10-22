@@ -13,35 +13,38 @@
             <p id="update-time" class="text-xs text-gray-400 mt-1">同步中...</p>
         </div>
         <div class="bg-gray-800 rounded-2xl border border-gray-700 p-6">
-            <h2 class="font-bold mb-4">🎯 赛事预测列表</h2>
+            <h2 class="font-bold mb-4">🎯 竞彩赛事观察列表</h2>
             <div id="match-list" class="space-y-3"></div>
         </div>
     </div>
     <script>
+        const escapeHtml = value => String(value ?? '').replace(/[&<>"']/g, char => ({
+            '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;'
+        })[char]);
         async function loadData() {
             try {
                 const res = await fetch('dashboard_data.json?ts=' + Date.now(), { cache: 'no-store' });
+                if (!res.ok) throw new Error('Dashboard snapshot HTTP ' + res.status);
                 const data = await res.json();
-                document.getElementById('update-time').innerText = `最后更新: ${data.update_time}`;
                 const list = document.getElementById('match-list');
                 const st = data.status && data.status !== 'ok' ? ` ⚠️ 状态: ${data.status}（显示的是上次有效数据）` : '';
-                document.getElementById('update-time').innerText = `最后更新: ${data.update_time}${st}`;
-                if (!data.matches.length) { list.innerHTML = '<p class="text-sm text-gray-400">暂无真实竞彩数据。系统正在等待官方数据源及自动发布链路通过验证；无需手动上传数据。</p>'; return; }
-                const pc = v => v == null ? '-' : (v*100).toFixed(0) + '%';
+                document.getElementById('update-time').innerText = `最后更新: ${data.update_time || '未知'}${st}`;
+                if (!Array.isArray(data.matches) || !data.matches.length) { list.textContent = '暂无真实竞彩数据。系统正在等待官方数据源及自动发布链路通过验证；无需手动上传数据。'; return; }
+                const pc = v => (v * 100).toFixed(0) + '%';
                 list.innerHTML = data.matches.map(m => `
                     <div class="bg-gray-900 p-4 rounded-xl border border-gray-700">
                         <div class="flex justify-between items-start">
                             <div>
-                                <span class="text-xs text-emerald-400 font-bold">${m.league}</span>
-                                <div class="font-bold text-white mt-1">${m.home} vs ${m.away}</div>
-                                <div class="text-xs text-gray-500">${m.kickoff_display || (m.kickoff ? new Date(m.kickoff).toLocaleString('zh-CN') : '')}</div>
+                                <span class="text-xs text-emerald-400 font-bold">${escapeHtml(m.league)}</span>
+                                <div class="font-bold text-white mt-1">${escapeHtml(m.home)} vs ${escapeHtml(m.away)}</div>
+                                <div class="text-xs text-gray-500">${escapeHtml(m.kickoff_display || (m.kickoff ? new Date(m.kickoff).toLocaleString('zh-CN') : ''))}</div>
                             </div>
                             <div class="text-right">
-                                <span class="text-xs bg-emerald-900 text-emerald-300 px-2.5 py-1 rounded-full">${m.recommendation}</span>
-                                <div class="text-xs text-gray-400 mt-1">风险 ${m.risk || '-'}</div>
+                                <span class="text-xs bg-emerald-900 text-emerald-300 px-2.5 py-1 rounded-full">${escapeHtml(m.recommendation)}</span>
+                                <div class="text-xs text-gray-400 mt-1">风险 ${escapeHtml(m.risk || '-')}</div>
                             </div>
                         </div>
-                        ${m.prob_home != null && m.scores ? `<div class="text-xs text-gray-300 mt-2">胜 ${pc(m.prob_home)} · 平 ${pc(m.prob_draw)} · 负 ${pc(m.prob_away)} ｜ 预期进球 ${m.xg_home}-${m.xg_away} ｜ 比分 ${m.scores.join(' / ')} ｜ 大2.5 ${pc(m.over25)}</div>` : ''}
+                        ${[m.prob_home, m.prob_draw, m.prob_away].every(v => typeof v === 'number' && Number.isFinite(v) && v >= 0 && v <= 1) ? `<div class="text-xs text-gray-300 mt-2">去水市场概率（非模型预测）：胜 ${pc(m.prob_home)} · 平 ${pc(m.prob_draw)} · 负 ${pc(m.prob_away)}</div>` : ''}
                     </div>
                 `).join('');
             } catch(e) { document.getElementById('update-time').innerText = '数据读取失败：请检查 GitHub Pages 数据文件与自动更新任务'; document.getElementById('match-list').textContent = '暂时无法读取已发布的分析结果。'; }
