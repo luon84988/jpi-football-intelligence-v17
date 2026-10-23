@@ -4,6 +4,8 @@ on:
   pull_request:
     paths:
       - 'worker/**'
+      - 'export_data.py'
+      - 'tests/test_export_data.py'
       - 'tests/live-football-cache.test.mjs'
       - 'package.json'
       - 'package-lock.json'
@@ -32,6 +34,12 @@ jobs:
         uses: actions/setup-node@v4
         with:
           node-version: '22'
+      - name: Set up Python 3.12
+        uses: actions/setup-python@v5
+        with:
+          python-version: '3.12'
+      - name: Verify export attestation contract (unit tests only)
+        run: python -m unittest discover -s tests -p 'test_export_data.py' -v
       - name: Test D1 snapshot logic (mock D1 only)
         run: node --experimental-strip-types --test tests/live-football-cache.test.mjs
       - name: Install pinned dependencies
