@@ -123,9 +123,18 @@ const worker = {
               return { league: item.leagueAbbName, group: classifyLeague(item.leagueAbbName), tier: "竞彩", state: item.matchStatus === "Selling" ? "pre" : "pre", time: `${item.matchDate?.slice(5).replace("-", "/")} ${item.matchTime?.slice(0, 5)}`, home: item.homeTeamAbbName, away: item.awayTeamAbbName, dq: validHad ? "A" : "C", edge: total ? `${((1 / total) * 100).toFixed(1)}%返还` : "—", risk: model && model.fitError < .035 ? "B" : validHad ? "C" : "D", signal: validHad ? labels[maxIndex] : "赔率未开售", score: model?.topScores[0]?.score || "—", scoreConfidence: model?.confidence || 0, topScores: model?.topScores || [], homeXg: model?.homeXg ?? null, awayXg: model?.awayXg ?? null, marketHomeXg: model?.marketHomeXg ?? null, marketAwayXg: model?.marketAwayXg ?? null, style: model?.style ?? null, modelFitError: model?.fitError ?? null, pdi: Number(pdi.toFixed(2)), draw: `让${handicap || "0"} ${hhadText}`, odds: validHad ? hadOdds.map((v: number) => v.toFixed(2)) : ["—", "—", "—"], status: `${matchNum} · ${validHad ? hadOdds.map((v: number) => v.toFixed(2)).join("/") : "未开售"}`, sourceEventId: String(item.matchId), salesDate: item.businessDate || group.businessDate, matchNum, handicap, hhadOdds: hhadText, sellStatus: item.sellStatus };
             }));
             if (matches.length) {
-              const payload = { matches, updatedAt: new Date().toISOString(), source: "中国体育彩票官方竞彩", stale: false, sourceHealth: { requested: 1, succeeded: 1, hasData: true, officialCount: matches.length } };
-              ctx.waitUntil(saveLiveFootballCache(env.DB, payload));
-              return Response.json(payload, { headers: { "Cache-Control": "public, max-age=60, s-maxage=180", "X-Football-Data": "sporttery-live" } });
+              const retrievedAt = new Date().toISOString();
+              const payload = { matches, updatedAt: retrievedAt, retrievedAt, upstreamOddsTimestamp: null,
+                timestampProvenance: "worker_retrieval_only", source: "中国体育彩票官方竞彩", stale: false,
+                sourceHealth: { requested: 1, succeeded: 1, hasData: true, officialCount: matches.length } };
+              try {
+                const persistence = await saveLiveFootballCache(env.DB, payload);
+                return Response.json({ ...payload, persistence: { status: "verified", snapshotHash: persistence.snapshotHash } },
+                  { headers: { "Cache-Control": "public, max-age=60, s-maxage=180", "X-Football-Data": "sporttery-live" } });
+              } catch {
+                return Response.json({ matches: [], source: "中国体育彩票官方竞彩", stale: true,
+                  error: "D1_SNAPSHOT_WRITE_FAILED" }, { status: 503, headers: { "Cache-Control": "no-store" } });
+              }
             }
           }
         }
