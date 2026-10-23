@@ -162,10 +162,12 @@ def build_dashboard_payload(payload: dict) -> dict:
         "timestamp_provenance": payload.get("timestampProvenance", "worker_retrieval_only"),
         "source": payload.get("source", "JPi live football API"),
         "stale": False,
+        "analysis_status": "PRE_ANALYSIS",
         "summary": {
             "total_matches": len(rows),
             "ev_positive_count": 0,
-            "model_version": "V17.0",
+            "model_version": "V17.0 Pre-Analysis",
+            "analysis_status": "PRE_ANALYSIS",
             "probability_basis": "de-vigged_market_odds; not independent model probabilities",
             "skipped_invalid_matches": skipped,
         },
