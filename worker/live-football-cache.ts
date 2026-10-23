@@ -15,6 +15,37 @@ const ensureSnapshots = (db: D1Database) => db.prepare(`CREATE TABLE IF NOT EXIS
   match_count INTEGER NOT NULL
 )`).run();
 
+/** Canonicalize official three-way market states, independent of model scores and row order. */
+function canonicalMarkets(matches: unknown[]) {
+  const markets: Array<{ id: string; odds: string[]; handicap: string | null; hhadOdds: string[] | null }> = [];
+  for (const match of matches) {
+    if (!match || typeof match !== "object") continue;
+    const row = match as Record<string, unknown>;
+    if (!Array.isArray(row.odds) || row.odds.length !== 3) continue;
+    const odds = row.odds.map(Number);
+    if (!odds.every(value => Number.isFinite(value) && value > 1)) continue;
+    const id = String(row.sourceEventId ?? "").trim();
+    if (!id || id === "undefined" || id === "null") {
+      throw new Error("Official odds row is missing a stable sourceEventId");
+    }
+    const handicap = row.handicap == null || String(row.handicap).trim() === ""
+      ? null : String(Number(row.handicap));
+    if (handicap === "NaN" || handicap === "Infinity") {
+      throw new Error("Official odds row has an invalid handicap");
+    }
+    const hhadValues = typeof row.hhadOdds === "string" ? row.hhadOdds.split("/").map(Number) : [];
+    const hhadOdds = hhadValues.length === 3 && hhadValues.every(value => Number.isFinite(value) && value > 1)
+      ? hhadValues.map(String) : null;
+    markets.push({ id, odds: odds.map(String), handicap, hhadOdds });
+  }
+  if (!markets.length) throw new Error("Official feed has no identifiable valid three-way odds");
+  markets.sort((a, b) => a.id.localeCompare(b.id));
+  if (markets.some((market, index) => index > 0 && market.id === markets[index - 1].id)) {
+    throw new Error("Official feed contains duplicate sourceEventId values");
+  }
+  return markets;
+}
+
 /**
  * Persist the last-success cache and an immutable snapshot atomically.
  * A repeated identical market state updates the cache but not the historical row.
@@ -32,20 +63,13 @@ export async function saveLiveFootballCache(db: D1Database, payload: Record<stri
       (health as { hasData?: boolean }).hasData !== true) {
     throw new Error("Official source health is not verified");
   }
-  if (!matches.some((match) => {
-    if (!match || typeof match !== "object") return false;
-    const odds = (match as { odds?: unknown }).odds;
-    return Array.isArray(odds) && odds.length === 3 &&
-      odds.every((v) => Number.isFinite(Number(v)) && Number(v) > 1);
-  })) {
-    throw new Error("Official feed has no valid three-way odds");
-  }
+  const markets = canonicalMarkets(matches);
   const updatedAt = payload.updatedAt;
   if (typeof updatedAt !== "string" || !Number.isFinite(Date.parse(updatedAt))) {
     throw new Error("Official payload is missing a valid retrieval timestamp");
   }
   const serialized = JSON.stringify(payload);
-  const fingerprint = JSON.stringify({ source: payload.source, matches });
+  const fingerprint = JSON.stringify({ source: payload.source, markets });
   const digest = await crypto.subtle.digest("SHA-256", new TextEncoder().encode(fingerprint));
   const snapshotHash = Array.from(new Uint8Array(digest), b => b.toString(16).padStart(2, "0")).join("");
   await ensureCache(db);
@@ -53,7 +77,7 @@ export async function saveLiveFootballCache(db: D1Database, payload: Record<stri
   const results = await db.batch([
     db.prepare(`INSERT INTO live_football_snapshots (snapshot_hash,payload,first_seen_at,source,match_count)
       VALUES (?,?,?,?,?) ON CONFLICT(snapshot_hash) DO NOTHING`)
-      .bind(snapshotHash, serialized, updatedAt, payload.source, matches.length),
+      .bind(snapshotHash, serialized, updatedAt, payload.source, markets.length),
     db.prepare(`INSERT INTO live_football_cache (cache_key,payload,updated_at) VALUES (?,?,?)
       ON CONFLICT(cache_key) DO UPDATE SET payload=excluded.payload, updated_at=excluded.updated_at`)
       .bind(CACHE_KEY, serialized, updatedAt),
