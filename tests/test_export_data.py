@@ -36,6 +36,7 @@ class ExportDataTests(unittest.TestCase):
             "updatedAt": "2026-10-20T06:30:00Z",
             "source": "中国体育彩票官方竞彩",
             "sourceHealth": {"succeeded": 1, "hasData": True},
+            "persistence": {"status": "verified", "snapshotHash": "a" * 64},
             "matches": [{
                 "league": "测试联赛",
                 "home": "主队",
@@ -49,6 +50,31 @@ class ExportDataTests(unittest.TestCase):
         self.assertIsNone(output["matches"][0]["ev_value"])
         self.assertEqual(output["matches"][0]["probability_basis"], "de-vigged_market_odds")
         self.assertNotIn("+EV", output["matches"][0]["recommendation"])
+
+    def test_d1_persistence_attestation_required(self):
+        valid = {"persistence": {"status": "verified", "snapshotHash": "a" * 64}}
+        self.assertEqual(export_data.require_verified_persistence(valid), "a" * 64)
+        for proof in (None, {}, {"status": "pending"},
+                      {"status": "verified", "snapshotHash": "bad"},
+                      {"status": "verified", "snapshotHash": "Z" * 64}):
+            with self.subTest(proof=proof):
+                with self.assertRaises(export_data.ExportError):
+                    export_data.require_verified_persistence({"persistence": proof})
+
+    def test_dashboard_contains_persistence_evidence(self):
+        payload = {
+            "source": "中国体育彩票官方竞彩",
+            "sourceHealth": {"succeeded": 1, "hasData": True},
+            "persistence": {"status": "verified", "snapshotHash": "b" * 64},
+            "timestampProvenance": "worker_retrieval_only",
+            "updatedAt": "2026-10-23T08:00:00Z",
+            "matches": [{"sourceEventId": "m1", "league": "测试", "home": "主",
+                         "away": "客", "odds": ["2.1", "3.3", "3.8"]}],
+        }
+        output = export_data.build_dashboard_payload(payload)
+        self.assertEqual(output["snapshot_hash"], "b" * 64)
+        self.assertEqual(output["persistence_status"], "verified")
+        self.assertEqual(output["timestamp_provenance"], "worker_retrieval_only")
 
     def test_fallback_source_rejected(self):
         payload = {"source": "ESPN fallback", "sourceHealth": {"succeeded": 1, "hasData": True}, "updatedAt": "2026-10-20T06:30:00Z", "matches": [{"league": "测试", "home": "主", "away": "客", "odds": ["2", "3", "4"]}]}
@@ -65,6 +91,7 @@ class ExportDataTests(unittest.TestCase):
             "updatedAt": "2026-10-20T06:30:00Z",
             "source": "中国体育彩票官方竞彩",
             "sourceHealth": {"succeeded": 1, "hasData": True},
+            "persistence": {"status": "verified", "snapshotHash": "a" * 64},
             "matches": [{
                 "league": "测试联赛",
                 "home": "主队",
