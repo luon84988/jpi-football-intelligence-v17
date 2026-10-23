@@ -1,9 +1,15 @@
 import unittest
+from pathlib import Path
 
 import export_data
 
 
 class ExportDataTests(unittest.TestCase):
+    def test_production_health_uses_same_optional_api_key_as_export(self):
+        workflow = (Path(__file__).resolve().parents[1] / ".github/workflows/production_health.yml").read_text(encoding="utf-8")
+        self.assertIn('API_KEY: ${{ secrets.API_KEY }}', workflow)
+        self.assertIn('JPI_API_URL: ${{ vars.JPI_API_URL }}', workflow)
+
     def test_endpoint_appends_live_route(self):
         self.assertEqual(
             export_data.source_endpoint("https://jpi.example.com/"),
