@@ -13,7 +13,8 @@ class MemoryD1 {
       async run() { return { success: true }; },
       async first() {
         if (sql.includes("FROM live_football_snapshots"))
-          return db.snapshots.has(this.params[0]) ? { snapshot_hash: this.params[0] } : null;
+          return db.snapshots.has(this.params[0])
+            ? { snapshot_hash: this.params[0], payload: db.snapshots.get(this.params[0]) } : null;
         if (sql.includes("FROM live_football_snapshot_head"))
           return db.head ? { snapshot_hash: db.head } : null;
         return db.cache;
@@ -110,4 +111,22 @@ test("records A→B→A reversals without duplicating immutable market bodies", 
   assert.deepEqual(db.events.map(x => x.hash), [a.snapshotHash, b.snapshotHash, a.snapshotHash]);
   assert.deepEqual(db.events.map(x => x.previous), [null, a.snapshotHash, b.snapshotHash]);
   assert.equal(db.head, a.snapshotHash);
+});
+
+test("rejects corrupted immutable snapshot bodies even when the hash key exists", async () => {
+  const db = new MemoryD1();
+  const original = await saveLiveFootballCache(db, official());
+  db.snapshots.set(original.snapshotHash, JSON.stringify(official(["2.1", "3.1", "3.7"])));
+  await assert.rejects(saveLiveFootballCache(db, official()), /snapshot content hash mismatch/);
+});
+
+test("rejects corrupted cache readback despite acknowledged batch writes", async () => {
+  const db = new MemoryD1();
+  const batch = db.batch.bind(db);
+  db.batch = async (stmts) => {
+    const results = await batch(stmts);
+    db.cache = { ...db.cache, payload: '{"tampered":true}' };
+    return results;
+  };
+  await assert.rejects(saveLiveFootballCache(db, official()), /cache readback verification failed/);
 });
