@@ -24,6 +24,19 @@ class ExportError(RuntimeError):
     pass
 
 
+def require_verified_persistence(payload: dict) -> str:
+    """Require a Worker D1 write/readback attestation before publication."""
+    proof = payload.get("persistence")
+    if not isinstance(proof, dict) or proof.get("status") != "verified":
+        raise ExportError("Worker has not verified durable D1 snapshot persistence.")
+    digest = proof.get("snapshotHash")
+    if not isinstance(digest, str) or len(digest) != 64 or any(
+        char not in "0123456789abcdef" for char in digest
+    ):
+        raise ExportError("Worker persistence attestation has an invalid snapshot hash.")
+    return digest
+
+
 def source_endpoint(base_url: str) -> str:
     base_url = base_url.strip().rstrip("/")
     if not base_url:
@@ -66,6 +79,7 @@ def fetch_live_data(endpoint: str) -> dict:
     health = payload.get("sourceHealth")
     if not isinstance(health, dict) or health.get("succeeded") != 1 or health.get("hasData") is not True:
         raise ExportError("Official source health is not verified; refusing to publish.")
+    require_verified_persistence(payload)
     matches = payload.get("matches")
     if not isinstance(matches, list) or not matches:
         raise ExportError("Live API returned no matches; refusing to replace the existing snapshot.")
@@ -108,6 +122,7 @@ def build_dashboard_payload(payload: dict) -> dict:
     health = payload.get("sourceHealth")
     if not isinstance(health, dict) or health.get("succeeded") != 1 or health.get("hasData") is not True:
         raise ExportError("Official source health is not verified.")
+    snapshot_hash = require_verified_persistence(payload)
     rows = []
     skipped = 0
     for match in payload["matches"]:
@@ -142,6 +157,9 @@ def build_dashboard_payload(payload: dict) -> dict:
     return {
         "update_time": datetime.now(timezone.utc).isoformat(timespec="seconds"),
         "source_updated_at": payload["updatedAt"],
+        "snapshot_hash": snapshot_hash,
+        "persistence_status": "verified",
+        "timestamp_provenance": payload.get("timestampProvenance", "worker_retrieval_only"),
         "source": payload.get("source", "JPi live football API"),
         "stale": False,
         "summary": {
