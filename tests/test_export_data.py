@@ -1,4 +1,5 @@
 import unittest
+from urllib.request import Request
 
 import export_data
 
@@ -19,6 +20,33 @@ class ExportDataTests(unittest.TestCase):
     def test_invalid_endpoint_rejected(self):
         with self.assertRaises(export_data.ExportError):
             export_data.source_endpoint("")
+
+    def test_worker_url_requires_https_and_has_no_embedded_credentials(self):
+        for unsafe_url in (
+            "http://worker.example.com",
+            "http://127.0.0.1:8787",
+            "https://name:password@worker.example.com",
+            "https://worker.example.com/?token=example",
+            "https://worker.example.com/#fragment",
+        ):
+            with self.subTest(url=unsafe_url):
+                with self.assertRaises(export_data.ExportError):
+                    export_data.source_endpoint(unsafe_url)
+
+    def test_fetch_cannot_bypass_tls_check(self):
+        with self.assertRaises(export_data.ExportError):
+            export_data.fetch_live_data("http://worker.example.com/api/football/live")
+
+    def test_redirect_handler_does_not_forward_bearer_token(self):
+        request = Request(
+            "https://worker.example.com/api/football/live",
+            headers={"Authorization": "Bearer placeholder-not-a-secret"},
+        )
+        redirected = export_data._NoRedirects().redirect_request(
+            request, None, 302, "Found", {},
+            "https://untrusted.example.net/collect",
+        )
+        self.assertIsNone(redirected)
 
     def test_market_probabilities_are_de_vigged(self):
         probabilities = export_data.odds_probabilities(["2.00", "3.00", "4.00"])
