@@ -1,0 +1,21 @@
+name: Pages Dashboard HTML Escaping
+on:
+  pull_request:
+    paths:
+      - 'index.html'
+      - 'tests/test_pages_escape.mjs'
+      - '.github/workflows/pages_escape.yml'
+  workflow_dispatch:
+permissions:
+  contents: read
+jobs:
+  escape-regression:
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+      - name: Verify dashboard HTML escaping
+        run: node --test tests/test_pages_escape.mjs
