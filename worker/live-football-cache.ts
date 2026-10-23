@@ -110,15 +110,36 @@ export async function saveLiveFootballCache(db: D1Database, payload: Record<stri
   if (results.length !== 4 || results.some(result => result.success !== true)) {
     throw new Error("D1 did not acknowledge snapshot, transition, head and cache writes");
   }
-  const row = await db.prepare(`SELECT snapshot_hash FROM live_football_snapshots WHERE snapshot_hash=?`)
-    .bind(snapshotHash).first<{ snapshot_hash: string }>();
-  if (row?.snapshot_hash !== snapshotHash) {
+  // A matching primary key alone is not proof that the immutable body is intact.
+  // Recompute its canonical market fingerprint from the D1 readback.
+  const row = await db.prepare(`SELECT snapshot_hash,payload FROM live_football_snapshots WHERE snapshot_hash=?`)
+    .bind(snapshotHash).first<{ snapshot_hash: string; payload: string }>();
+  if (row?.snapshot_hash !== snapshotHash || typeof row.payload !== "string") {
     throw new Error("D1 snapshot readback verification failed");
+  }
+  let storedPayload: any;
+  try { storedPayload = JSON.parse(row.payload); }
+  catch { throw new Error("D1 snapshot payload is not valid JSON"); }
+  if (!storedPayload || storedPayload.source !== payload.source || !Array.isArray(storedPayload.matches)) {
+    throw new Error("D1 snapshot payload has invalid provenance");
+  }
+  const storedFingerprint = JSON.stringify({
+    source: storedPayload.source, markets: canonicalMarkets(storedPayload.matches)
+  });
+  const storedDigest = await crypto.subtle.digest("SHA-256", new TextEncoder().encode(storedFingerprint));
+  const storedHash = Array.from(new Uint8Array(storedDigest), b => b.toString(16).padStart(2, "0")).join("");
+  if (storedHash !== snapshotHash) {
+    throw new Error("D1 snapshot content hash mismatch");
   }
   const head = await db.prepare(`SELECT snapshot_hash FROM live_football_snapshot_head WHERE cache_key=?`)
     .bind(CACHE_KEY).first<{ snapshot_hash: string }>();
   if (head?.snapshot_hash !== snapshotHash) {
     throw new Error("D1 transition head readback verification failed");
+  }
+  const cache = await db.prepare(`SELECT payload,updated_at FROM live_football_cache WHERE cache_key=?`)
+    .bind(CACHE_KEY).first<{ payload: string; updated_at: string }>();
+  if (cache?.payload !== serialized || cache?.updated_at !== updatedAt) {
+    throw new Error("D1 cache readback verification failed");
   }
   return { snapshotHash, persisted: true };
 }
