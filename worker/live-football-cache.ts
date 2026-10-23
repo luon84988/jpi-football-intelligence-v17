@@ -15,6 +15,20 @@ const ensureSnapshots = (db: D1Database) => db.prepare(`CREATE TABLE IF NOT EXIS
   match_count INTEGER NOT NULL
 )`).run();
 
+/** Append one event per observed market-state transition, including A→B→A reversals. */
+const ensureTransitionLog = async (db: D1Database) => {
+  await db.prepare(`CREATE TABLE IF NOT EXISTS live_football_snapshot_head (
+    cache_key TEXT PRIMARY KEY,
+    snapshot_hash TEXT NOT NULL
+  )`).run();
+  await db.prepare(`CREATE TABLE IF NOT EXISTS live_football_snapshot_events (
+    event_id INTEGER PRIMARY KEY AUTOINCREMENT,
+    snapshot_hash TEXT NOT NULL,
+    observed_at TEXT NOT NULL,
+    previous_snapshot_hash TEXT
+  )`).run();
+};
+
 /** Canonicalize official three-way market states, independent of model scores and row order. */
 function canonicalMarkets(matches: unknown[]) {
   const markets: Array<{ id: string; odds: string[]; handicap: string | null; hhadOdds: string[] | null }> = [];
@@ -48,7 +62,9 @@ function canonicalMarkets(matches: unknown[]) {
 
 /**
  * Persist the last-success cache and an immutable snapshot atomically.
- * A repeated identical market state updates the cache but not the historical row.
+ * A repeated identical market state updates the cache without adding a transition.
+ * If odds return to a previous state (A→B→A), append a new transition event
+ * even though the immutable market-state body already exists.
  * The hash describes content, NOT an independently verified upstream quote time.
  */
 export async function saveLiveFootballCache(db: D1Database, payload: Record<string, unknown>) {
@@ -74,21 +90,35 @@ export async function saveLiveFootballCache(db: D1Database, payload: Record<stri
   const snapshotHash = Array.from(new Uint8Array(digest), b => b.toString(16).padStart(2, "0")).join("");
   await ensureCache(db);
   await ensureSnapshots(db);
+  await ensureTransitionLog(db);
   const results = await db.batch([
     db.prepare(`INSERT INTO live_football_snapshots (snapshot_hash,payload,first_seen_at,source,match_count)
       VALUES (?,?,?,?,?) ON CONFLICT(snapshot_hash) DO NOTHING`)
       .bind(snapshotHash, serialized, updatedAt, payload.source, markets.length),
+    db.prepare(`INSERT INTO live_football_snapshot_events (snapshot_hash,observed_at,previous_snapshot_hash)
+      SELECT ?,?,(SELECT snapshot_hash FROM live_football_snapshot_head WHERE cache_key=?)
+      WHERE NOT EXISTS (
+        SELECT 1 FROM live_football_snapshot_head WHERE cache_key=? AND snapshot_hash=?
+      )`).bind(snapshotHash, updatedAt, CACHE_KEY, CACHE_KEY, snapshotHash),
+    db.prepare(`INSERT INTO live_football_snapshot_head (cache_key,snapshot_hash) VALUES (?,?)
+      ON CONFLICT(cache_key) DO UPDATE SET snapshot_hash=excluded.snapshot_hash`)
+      .bind(CACHE_KEY, snapshotHash),
     db.prepare(`INSERT INTO live_football_cache (cache_key,payload,updated_at) VALUES (?,?,?)
       ON CONFLICT(cache_key) DO UPDATE SET payload=excluded.payload, updated_at=excluded.updated_at`)
       .bind(CACHE_KEY, serialized, updatedAt),
   ]);
-  if (results.length !== 2 || results.some(result => result.success !== true)) {
-    throw new Error("D1 did not acknowledge both snapshot and cache writes");
+  if (results.length !== 4 || results.some(result => result.success !== true)) {
+    throw new Error("D1 did not acknowledge snapshot, transition, head and cache writes");
   }
   const row = await db.prepare(`SELECT snapshot_hash FROM live_football_snapshots WHERE snapshot_hash=?`)
     .bind(snapshotHash).first<{ snapshot_hash: string }>();
   if (row?.snapshot_hash !== snapshotHash) {
     throw new Error("D1 snapshot readback verification failed");
+  }
+  const head = await db.prepare(`SELECT snapshot_hash FROM live_football_snapshot_head WHERE cache_key=?`)
+    .bind(CACHE_KEY).first<{ snapshot_hash: string }>();
+  if (head?.snapshot_hash !== snapshotHash) {
+    throw new Error("D1 transition head readback verification failed");
   }
   return { snapshotHash, persisted: true };
 }
