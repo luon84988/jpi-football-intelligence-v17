@@ -14,7 +14,7 @@ from datetime import datetime, timezone
 from pathlib import Path
 from urllib.error import HTTPError, URLError
 from urllib.parse import urlparse
-from urllib.request import Request, urlopen
+from urllib.request import HTTPRedirectHandler, Request, build_opener
 
 OUTPUT = Path(__file__).with_name("dashboard_data.json")
 MAX_AGE_SECONDS = int(os.getenv("MAX_SOURCE_AGE_SECONDS", "1800"))
@@ -29,21 +29,32 @@ def source_endpoint(base_url: str) -> str:
     if not base_url:
         raise ExportError("JPI_API_URL is empty; configure it as a GitHub Actions repository variable.")
     parsed = urlparse(base_url)
-    if parsed.scheme not in {"https", "http"} or not parsed.netloc:
-        raise ExportError("JPI_API_URL must be an absolute http(s) URL.")
+    if parsed.scheme != "https" or not parsed.hostname:
+        raise ExportError("JPI_API_URL must be an absolute HTTPS URL.")
+    if parsed.username is not None or parsed.password is not None or parsed.query or parsed.fragment:
+        raise ExportError("JPI_API_URL must not contain credentials, a query, or a fragment.")
     if parsed.path.rstrip("/").endswith("/api/football/live"):
         return base_url
     return base_url + "/api/football/live"
 
 
+class _NoRedirects(HTTPRedirectHandler):
+    """Never forward an API bearer token to a redirected destination."""
+
+    def redirect_request(self, request, fp, code, msg, headers, newurl):
+        return None
+
+
 def fetch_live_data(endpoint: str) -> dict:
+    # Enforce TLS even when callers bypass source_endpoint().
+    endpoint = source_endpoint(endpoint)
     headers = {"Accept": "application/json", "User-Agent": "JPi-V17-dashboard-export/1.0"}
     api_key = os.getenv("API_KEY", "").strip()
     if api_key:
         headers["Authorization"] = f"Bearer {api_key}"
     request = Request(endpoint, headers=headers, method="GET")
     try:
-        with urlopen(request, timeout=25) as response:
+        with build_opener(_NoRedirects()).open(request, timeout=25) as response:
             if response.status != 200:
                 raise ExportError(f"Live API returned HTTP {response.status}.")
             raw = response.read(5_000_001)
