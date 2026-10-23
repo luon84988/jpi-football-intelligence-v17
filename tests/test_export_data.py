@@ -46,6 +46,9 @@ class ExportDataTests(unittest.TestCase):
             }],
         }
         output = export_data.build_dashboard_payload(source)
+        self.assertEqual(output["analysis_status"], "PRE_ANALYSIS")
+        self.assertEqual(output["summary"]["analysis_status"], "PRE_ANALYSIS")
+        self.assertEqual(output["summary"]["model_version"], "V17.0 Pre-Analysis")
         self.assertEqual(output["summary"]["ev_positive_count"], 0)
         self.assertIsNone(output["matches"][0]["ev_value"])
         self.assertEqual(output["matches"][0]["probability_basis"], "de-vigged_market_odds")
