@@ -2,6 +2,7 @@
 import './value.css'
 import './market.css'
 import {useEffect,useMemo,useState} from 'react'
+import {describeFeedStatus} from './dashboard-status.mjs'
 
 // 中国竞彩网（sporttery.cn）使用的球队简称是全站唯一展示口径。
 const sportteryTeamNames={
@@ -74,10 +75,11 @@ export default function Home(){
  const getMarketMoves=x=>{const id=String(x.sourceEventId||''),book='bet365',bookName=code=>marketOdds.bookmakers.find(b=>b.code===code)?.name||'Bet365',sort=(a,b)=>String(b.observed_at).localeCompare(String(a.observed_at)),pick=(list,type)=>list.filter(r=>String(r.match_id)===id&&r.bookmaker===book&&String(r.snapshot_type).toUpperCase()===type).sort(sort)[0],has=[...marketOdds.europeanOdds,...marketOdds.asianLines].some(r=>String(r.match_id)===id&&r.bookmaker===book);return has?[{bookmaker:bookName(book),euOpen:pick(marketOdds.europeanOdds,'OPEN')||pick(marketOdds.europeanOdds,'INITIAL'),euNow:pick(marketOdds.europeanOdds,'CURRENT')||pick(marketOdds.europeanOdds,'LIVE'),ahOpen:pick(marketOdds.asianLines,'OPEN')||pick(marketOdds.asianLines,'INITIAL'),ahNow:pick(marketOdds.asianLines,'CURRENT')||pick(marketOdds.asianLines,'LIVE')}]:[]};
  const openNew=()=>{setDraftMatch(String(matches[0]?.sourceEventId||0));setAnalysisType('标准分析');setDialog('new')};
  const runAnalysis=()=>{const i=matches.findIndex(x=>String(x.sourceEventId)===draftMatch);if(i>=0)setActive(i);setView(analysisType==='平局分析'?'平局猎物':analysisType==='盘口分析'?'盘口雷达':'比赛分析');setDialog(null);setNotice(`已创建：${analysisType}`);setTimeout(()=>setNotice(''),2500)};
+ const feedStatus=describeFeedStatus({count:matches.length,live:sync.live,timestamp:sync.time});
  return <main>
-  <header><div className="brand"><span className="mark">JPi</span><div><b>FOOTBALL INTELLIGENCE</b><small>OS V17.0 · EVIDENCE FUSION TERMINAL</small></div></div><div className="status"><i/> SYSTEM ONLINE <span>{sync.live?'中国竞彩网实时数据':'中国竞彩网稳定缓存'}</span></div></header>
+  <header><div className="brand"><span className="mark">JPi</span><div><b>FOOTBALL INTELLIGENCE</b><small>OS V17.0 · EVIDENCE FUSION TERMINAL</small></div></div><div className="status"><i/> {feedStatus.headline} <span>{feedStatus.source}</span></div></header>
   <nav>{['市场总览','比赛分析','盘口雷达','平局猎物','投注价值库','联赛数据库'].map(x=><a key={x} className={view===x?'on':''} onClick={()=>{setView(x);setRegion('全部赛事');setFilter('全部');setQuery('');setValueFilter('全部')}}>{x}</a>)}<a className={view==='回测中心'?'on':''} onClick={()=>{setView('回测中心');setRegion('全部赛事');setFilter('全部');setQuery('');setNotice('当前为赛前数据；比赛结算后才能生成回测样本')}}>回测中心</a><a onClick={()=>setDialog('settings')}>模型设置</a><button onClick={openNew}>＋ 新建分析</button></nav>
-  <section className="ticker"><span>DATA QUALITY <b>{sync.live?'LIVE':'87.4'}</b></span><span>MODEL HIT RATE <b>68.2%</b></span><span>ACTIVE MATCHES <b>{matches.length}</b></span><span>HIGH RISK <em>{matches.filter(x=>x.risk==='D').length}</em></span><span>LAST SYNC <b>{sync.time?sync.time.toLocaleTimeString('zh-CN',{hour12:false}):'--:--:--'}</b></span><button className="syncBtn" onClick={refresh} disabled={sync.loading}>{sync.loading?'同步中…':'↻ 刷新数据'}</button><span className="warn">{sync.message}</span></section>
+  <section className="ticker"><span>FEED STATUS <b>{feedStatus.feed}</b></span><span>MODEL HIT RATE <b>未验证</b></span><span>ACTIVE MATCHES <b>{matches.length}</b></span><span>HIGH RISK <em>{matches.filter(x=>x.risk==='D').length}</em></span><span>LAST SYNC <b>{sync.time?sync.time.toLocaleTimeString('zh-CN',{hour12:false}):'--:--:--'}</b></span><button className="syncBtn" onClick={refresh} disabled={sync.loading}>{sync.loading?'同步中…':'↻ 刷新数据'}</button><span className="warn">{sync.message}</span></section>
   <div className="shell">
    <section className="workspace">
     <div className="title"><div><small>{view.toUpperCase()}</small><h1>{view==='市场总览'?'今日比赛信号台':view}</h1></div><div className="filters">{['全部','A','B','C','D'].map(x=><button key={x} className={filter===x?'sel':''} onClick={()=>setFilter(x)}>{x==='全部'?x:`风险 ${x}`}</button>)}</div></div>
