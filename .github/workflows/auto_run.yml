@@ -4,6 +4,7 @@ on:
   pull_request:
     paths:
       - 'export_data.py'
+      - '.github/workflows/production_health.yml'
       - 'tests/test_export_data.py'
       - '.github/workflows/auto_run.yml'
   workflow_dispatch:
