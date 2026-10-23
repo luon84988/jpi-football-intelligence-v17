@@ -1,0 +1,40 @@
+name: JPi Worker build verification
+
+on:
+  pull_request:
+    paths:
+      - 'worker/**'
+      - 'tests/live-football-cache.test.mjs'
+      - 'package.json'
+      - 'package-lock.json'
+      - 'vite.config.ts'
+      - 'build/**'
+      - 'scripts/build-verified.sh'
+      - 'scripts/install-ci.sh'
+      - '.github/workflows/worker_build_verification.yml'
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: worker-build-${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  verify-worker-build:
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    steps:
+      - name: Check out proposed code
+        uses: actions/checkout@v4
+      - name: Set up Node.js 22
+        uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+      - name: Test D1 snapshot logic (mock D1 only)
+        run: node --experimental-strip-types --test tests/live-football-cache.test.mjs
+      - name: Install pinned dependencies
+        run: npm run install:ci
+      - name: Build full Worker application
+        run: npm run build
