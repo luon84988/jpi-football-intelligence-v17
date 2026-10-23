@@ -110,17 +110,26 @@ def build_dashboard_payload(payload: dict) -> dict:
         raise ExportError("Official source health is not verified.")
     rows = []
     skipped = 0
+    seen_ids = set()
     for match in payload["matches"]:
         if not isinstance(match, dict):
             skipped += 1
             continue
+        event_id = match.get("sourceEventId") or match.get("matchNum")
+        if (not isinstance(event_id, (str, int)) or isinstance(event_id, bool)
+                or str(event_id).strip().lower() in {"", "none", "null", "undefined", "nan"}):
+            raise ExportError("Official match is missing a valid stable event ID; refusing to publish.")
+        event_id = str(event_id).strip()
+        if event_id in seen_ids:
+            raise ExportError("Duplicate official event ID in live feed; refusing to publish.")
+        seen_ids.add(event_id)
         league, home, away = match.get("league"), match.get("home"), match.get("away")
         probs = odds_probabilities(match.get("odds"))
         if not all(isinstance(value, str) and value.strip() for value in (league, home, away)) or probs is None:
             skipped += 1
             continue
         rows.append({
-            "match_id": match.get("sourceEventId") or match.get("matchNum"),
+            "match_id": event_id,
             "league": league,
             "home": home,
             "away": away,
