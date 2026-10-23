@@ -50,6 +50,43 @@ class ExportDataTests(unittest.TestCase):
         self.assertEqual(output["matches"][0]["probability_basis"], "de-vigged_market_odds")
         self.assertNotIn("+EV", output["matches"][0]["recommendation"])
 
+    def test_missing_stable_event_id_fails_closed(self):
+        source = {
+            "updatedAt": "2026-10-20T06:30:00Z",
+            "source": "中国体育彩票官方竞彩",
+            "sourceHealth": {"succeeded": 1, "hasData": True},
+            "matches": [{"league": "测试", "home": "主", "away": "客",
+                         "odds": ["2.00", "3.00", "4.00"]}],
+        }
+        with self.assertRaisesRegex(export_data.ExportError, "event ID"):
+            export_data.build_dashboard_payload(source)
+        source["matches"][0]["sourceEventId"] = "undefined"
+        with self.assertRaisesRegex(export_data.ExportError, "event ID"):
+            export_data.build_dashboard_payload(source)
+
+    def test_duplicate_stable_event_id_fails_closed(self):
+        match = {"league": "测试", "home": "主", "away": "客",
+                 "odds": ["2.00", "3.00", "4.00"], "sourceEventId": "match-1"}
+        source = {
+            "updatedAt": "2026-10-20T06:30:00Z",
+            "source": "中国体育彩票官方竞彩",
+            "sourceHealth": {"succeeded": 1, "hasData": True},
+            "matches": [match, {**match, "home": "另一主队"}],
+        }
+        with self.assertRaisesRegex(export_data.ExportError, "Duplicate"):
+            export_data.build_dashboard_payload(source)
+
+    def test_match_number_fallback_is_normalized(self):
+        source = {
+            "updatedAt": "2026-10-20T06:30:00Z",
+            "source": "中国体育彩票官方竞彩",
+            "sourceHealth": {"succeeded": 1, "hasData": True},
+            "matches": [{"league": "测试", "home": "主", "away": "客",
+                         "odds": ["2.00", "3.00", "4.00"], "matchNum": 42}],
+        }
+        output = export_data.build_dashboard_payload(source)
+        self.assertEqual(output["matches"][0]["match_id"], "42")
+
     def test_fallback_source_rejected(self):
         payload = {"source": "ESPN fallback", "sourceHealth": {"succeeded": 1, "hasData": True}, "updatedAt": "2026-10-20T06:30:00Z", "matches": [{"league": "测试", "home": "主", "away": "客", "odds": ["2", "3", "4"]}]}
         with self.assertRaises(export_data.ExportError):
