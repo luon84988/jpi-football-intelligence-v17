@@ -124,7 +124,7 @@ const worker = {
             }));
             if (matches.length) {
               const payload = { matches, updatedAt: new Date().toISOString(), source: "中国体育彩票官方竞彩", stale: false, sourceHealth: { requested: 1, succeeded: 1, hasData: true, officialCount: matches.length } };
-              ctx.waitUntil(saveLiveFootballCache(env.DB, payload));
+              await saveLiveFootballCache(env.DB, payload);
               return Response.json(payload, { headers: { "Cache-Control": "public, max-age=60, s-maxage=180", "X-Football-Data": "sporttery-live" } });
             }
           }

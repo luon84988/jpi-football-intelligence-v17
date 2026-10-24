@@ -9,9 +9,16 @@ const ensureCache = (db: D1Database) => db.prepare(`CREATE TABLE IF NOT EXISTS l
 export async function saveLiveFootballCache(db: D1Database, payload: Record<string, unknown>) {
   await ensureCache(db);
   const updatedAt = String(payload.updatedAt || new Date().toISOString());
+  const serialized = JSON.stringify(payload);
   await db.prepare(`INSERT INTO live_football_cache (cache_key,payload,updated_at) VALUES (?,?,?)
     ON CONFLICT(cache_key) DO UPDATE SET payload=excluded.payload, updated_at=excluded.updated_at`)
-    .bind(CACHE_KEY, JSON.stringify(payload), updatedAt).run();
+    .bind(CACHE_KEY, serialized, updatedAt).run();
+  // A successful live API response must not imply D1 persistence before readback.
+  const persisted = await db.prepare(`SELECT payload,updated_at FROM live_football_cache WHERE cache_key=?`)
+    .bind(CACHE_KEY).first<{payload: string; updated_at: string}>();
+  if (!persisted || persisted.payload !== serialized || persisted.updated_at !== updatedAt) {
+    throw new Error("D1_LIVE_CACHE_WRITE_NOT_VERIFIED");
+  }
 }
 
 export async function readLiveFootballCache(db: D1Database) {
