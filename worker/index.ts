@@ -13,6 +13,7 @@ import { ensureSourceDatabase, refreshApiFootball } from "./source-database";
 import { getBacktestOverview } from "./backtest-database";
 import { getPlayerStatistics } from "./player-statistics-database";
 import { readLiveFootballCache, saveLiveFootballCache } from "./live-football-cache";
+import { summarizeOfficialFeed } from "./official-feed-validation";
 
 interface Env {
   ASSETS: Fetcher;
@@ -122,8 +123,9 @@ const worker = {
               const model = validHad && hhadOdds.every((v: number) => Number.isFinite(v) && v > 1) ? scoreModel(hadOdds, hhadOdds, Number(handicap || 0), item.leagueAbbName, leagueProfiles.get(item.leagueAbbName), { home: teamStrengths.get(item.homeTeamAbbName), away: teamStrengths.get(item.awayTeamAbbName), homeName: item.homeTeamAbbName, awayName: item.awayTeamAbbName }) : null;
               return { league: item.leagueAbbName, group: classifyLeague(item.leagueAbbName), tier: "竞彩", state: item.matchStatus === "Selling" ? "pre" : "pre", time: `${item.matchDate?.slice(5).replace("-", "/")} ${item.matchTime?.slice(0, 5)}`, home: item.homeTeamAbbName, away: item.awayTeamAbbName, dq: validHad ? "A" : "C", edge: total ? `${((1 / total) * 100).toFixed(1)}%返还` : "—", risk: model && model.fitError < .035 ? "B" : validHad ? "C" : "D", signal: validHad ? labels[maxIndex] : "赔率未开售", score: model?.topScores[0]?.score || "—", scoreConfidence: model?.confidence || 0, topScores: model?.topScores || [], homeXg: model?.homeXg ?? null, awayXg: model?.awayXg ?? null, marketHomeXg: model?.marketHomeXg ?? null, marketAwayXg: model?.marketAwayXg ?? null, style: model?.style ?? null, modelFitError: model?.fitError ?? null, pdi: Number(pdi.toFixed(2)), draw: `让${handicap || "0"} ${hhadText}`, odds: validHad ? hadOdds.map((v: number) => v.toFixed(2)) : ["—", "—", "—"], status: `${matchNum} · ${validHad ? hadOdds.map((v: number) => v.toFixed(2)).join("/") : "未开售"}`, sourceEventId: String(item.matchId), salesDate: item.businessDate || group.businessDate, matchNum, handicap, hhadOdds: hhadText, sellStatus: item.sellStatus };
             }));
-            if (matches.length) {
-              const payload = { matches, updatedAt: new Date().toISOString(), source: "中国体育彩票官方竞彩", stale: false, sourceHealth: { requested: 1, succeeded: 1, hasData: true, officialCount: matches.length } };
+            const feedQuality = summarizeOfficialFeed(matches);
+            if (feedQuality.publishableCount > 0) {
+              const payload = { matches, updatedAt: new Date().toISOString(), source: "中国体育彩票官方竞彩", stale: false, sourceHealth: { requested: 1, succeeded: 1, hasData: true, officialCount: matches.length, publishableCount: feedQuality.publishableCount, invalidCount: feedQuality.invalidCount, duplicateCount: feedQuality.duplicateCount } };
               await saveLiveFootballCache(env.DB, payload);
               return Response.json(payload, { headers: { "Cache-Control": "public, max-age=60, s-maxage=180", "X-Football-Data": "sporttery-live" } });
             }
