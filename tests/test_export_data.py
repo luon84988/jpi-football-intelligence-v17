@@ -20,6 +20,31 @@ class ExportDataTests(unittest.TestCase):
         with self.assertRaises(export_data.ExportError):
             export_data.source_endpoint("")
 
+    def test_external_http_endpoint_rejected(self):
+        with self.assertRaisesRegex(export_data.ExportError, "HTTPS"):
+            export_data.source_endpoint("http://jpi.example.com")
+
+    def test_loopback_http_allowed_without_credentials(self):
+        self.assertEqual(
+            export_data.source_endpoint("http://127.0.0.1:8787"),
+            "http://127.0.0.1:8787/api/football/live",
+        )
+
+    def test_url_credentials_query_and_fragment_rejected(self):
+        for url in (
+            "https://user:pass@jpi.example.com",
+            "https://jpi.example.com?token=secret",
+            "https://jpi.example.com/#fragment",
+        ):
+            with self.subTest(url=url), self.assertRaises(export_data.ExportError):
+                export_data.source_endpoint(url)
+
+    def test_bearer_token_never_sent_to_http_loopback(self):
+        from unittest.mock import patch
+        with patch.dict("os.environ", {"API_KEY": "test-placeholder"}, clear=False):
+            with self.assertRaisesRegex(export_data.ExportError, "requires HTTPS"):
+                export_data.fetch_live_data("http://localhost:8787/api/football/live")
+
     def test_market_probabilities_are_de_vigged(self):
         probabilities = export_data.odds_probabilities(["2.00", "3.00", "4.00"])
         self.assertIsNotNone(probabilities)

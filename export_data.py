@@ -29,8 +29,12 @@ def source_endpoint(base_url: str) -> str:
     if not base_url:
         raise ExportError("JPI_API_URL is empty; configure it as a GitHub Actions repository variable.")
     parsed = urlparse(base_url)
-    if parsed.scheme not in {"https", "http"} or not parsed.netloc:
+    if parsed.scheme not in {"https", "http"} or not parsed.hostname:
         raise ExportError("JPI_API_URL must be an absolute http(s) URL.")
+    if parsed.username is not None or parsed.password is not None or parsed.query or parsed.fragment:
+        raise ExportError("JPI_API_URL must not contain credentials, a query, or a fragment.")
+    if parsed.scheme != "https" and parsed.hostname not in {"localhost", "127.0.0.1", "::1"}:
+        raise ExportError("JPI_API_URL must use HTTPS outside local loopback.")
     if parsed.path.rstrip("/").endswith("/api/football/live"):
         return base_url
     return base_url + "/api/football/live"
@@ -40,6 +44,8 @@ def fetch_live_data(endpoint: str) -> dict:
     headers = {"Accept": "application/json", "User-Agent": "JPi-V17-dashboard-export/1.0"}
     api_key = os.getenv("API_KEY", "").strip()
     if api_key:
+        if urlparse(endpoint).scheme != "https":
+            raise ExportError("API_KEY requires HTTPS; refusing to transmit a bearer token over HTTP.")
         headers["Authorization"] = f"Bearer {api_key}"
     request = Request(endpoint, headers=headers, method="GET")
     try:
