@@ -93,7 +93,7 @@ class ProductionMonitorParityTests(unittest.TestCase):
     def test_monitor_rejects_unpublishable_odds(self):
         from unittest.mock import patch
         from scripts import monitor_production
-        with patch.dict("os.environ", {"JPI_API_URL": "https://jpi.example.com"}), \\
+        with patch.dict("os.environ", {"JPI_API_URL": "https://jpi.example.com"}), \
              patch.object(monitor_production, "fetch_live_data", return_value=self.official_payload(["—", "3.2", "4.1"])):
             with self.assertRaises(export_data.ExportError):
                 monitor_production.check()
@@ -108,8 +108,8 @@ class ProductionMonitorParityTests(unittest.TestCase):
         payload["matches"].append({"league": "测试联赛", "home": "第二主队", "away": "第二客队",
                                    "sourceEventId": "official-2", "odds": ["—", "3.2", "4.1"]})
         output = io.StringIO()
-        with patch.dict("os.environ", {"JPI_API_URL": "https://jpi.example.com"}), \\
-             patch.object(monitor_production, "fetch_live_data", return_value=payload), \\
+        with patch.dict("os.environ", {"JPI_API_URL": "https://jpi.example.com"}), \
+             patch.object(monitor_production, "fetch_live_data", return_value=payload), \
              contextlib.redirect_stdout(output):
             self.assertEqual(monitor_production.check(), 0)
         result = json.loads(output.getvalue())
