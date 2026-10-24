@@ -10,7 +10,6 @@ export function summarizeOfficialFeed(matches: unknown[]): {
     const id = typeof match.sourceEventId === "string" ? match.sourceEventId.trim() : "";
     if (!id || /^(undefined|null|none|nan|unknown|-)$/i.test(id)) continue;
     if (seen.has(id)) { duplicateCount++; continue; }
-    seen.add(id);
     if (![match.league, match.home, match.away].every(
       value => typeof value === "string" && value.trim().length > 0
     )) continue;
@@ -22,6 +21,7 @@ export function summarizeOfficialFeed(matches: unknown[]): {
           const parsed = Number(value);
           return Number.isFinite(parsed) && parsed > 1;
         })) continue;
+    seen.add(id);
     publishableCount++;
   }
   return { totalCount: matches.length, publishableCount,
