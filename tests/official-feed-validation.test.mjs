@@ -80,3 +80,31 @@ test('all-invalid source has no rows eligible for D1 persistence', () => {
   assert.deepEqual(selection.matches, []);
   assert.equal(selection.quality.publishableCount, 0);
 });
+
+test('conflicting valid prices for the same event are excluded, not first-row-wins', () => {
+  const rows = [valid(), { ...valid(), odds: ['1.80', '3.25', '4.50'] }, valid('20261024002')];
+  const selection = selectPublishableOfficialFeed(rows);
+  assert.deepEqual(selection.matches.map(match => match.sourceEventId), ['20261024002']);
+  assert.deepEqual(selection.quality, {
+    totalCount: 3, publishableCount: 1, invalidCount: 2, duplicateCount: 1 });
+});
+
+test('conflicting team identity excludes the event even with matching odds', () => {
+  const selection = selectPublishableOfficialFeed([valid(), { ...valid(), away: '不同客队' }]);
+  assert.deepEqual(selection.matches, []);
+  assert.equal(selection.quality.publishableCount, 0);
+});
+
+test('equivalent numeric quote formatting remains an identical duplicate', () => {
+  const selection = selectPublishableOfficialFeed([
+    valid(), { ...valid(), odds: [2.1, '3.250', 3.5] }]);
+  assert.equal(selection.matches.length, 1);
+  assert.equal(selection.quality.duplicateCount, 1);
+});
+
+test('a third copy cannot restore an event already rejected for conflicting odds', () => {
+  const selection = selectPublishableOfficialFeed([
+    valid(), { ...valid(), odds: ['1.80', '3.25', '4.50'] }, valid()]);
+  assert.equal(selection.matches.length, 0);
+  assert.equal(selection.quality.duplicateCount, 2);
+});
