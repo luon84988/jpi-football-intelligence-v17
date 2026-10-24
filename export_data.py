@@ -110,6 +110,8 @@ def build_dashboard_payload(payload: dict) -> dict:
         raise ExportError("Official source health is not verified.")
     rows = []
     skipped = 0
+    duplicate_count = 0
+    seen_events: dict[str, tuple] = {}
     for match in payload["matches"]:
         if not isinstance(match, dict):
             skipped += 1
@@ -119,8 +121,32 @@ def build_dashboard_payload(payload: dict) -> dict:
         if not all(isinstance(value, str) and value.strip() for value in (league, home, away)) or probs is None:
             skipped += 1
             continue
+        # Match numbers repeat across sales dates. Only the provider's stable event
+        # identifier is safe for deduplication and later snapshot reconciliation.
+        raw_id = match.get("sourceEventId")
+        if isinstance(raw_id, bool) or not isinstance(raw_id, (str, int)):
+            skipped += 1
+            continue
+        match_id = str(raw_id).strip()
+        if not match_id or match_id.lower() in {"undefined", "null", "none"} or match_id == "0":
+            skipped += 1
+            continue
+        fingerprint = (
+            league.strip(), home.strip(), away.strip(),
+            tuple(float(value) for value in match["odds"]),
+            match.get("time"), match.get("salesDate"),
+        )
+        if match_id in seen_events:
+            if seen_events[match_id] != fingerprint:
+                raise ExportError(
+                    f"Conflicting official observations for event {match_id}; "
+                    "refusing to overwrite the existing dashboard snapshot."
+                )
+            duplicate_count += 1
+            continue
+        seen_events[match_id] = fingerprint
         rows.append({
-            "match_id": match.get("sourceEventId") or match.get("matchNum"),
+            "match_id": match_id,
             "league": league,
             "home": home,
             "away": away,
@@ -150,6 +176,7 @@ def build_dashboard_payload(payload: dict) -> dict:
             "model_version": "V17.0",
             "probability_basis": "de-vigged_market_odds; not independent model probabilities",
             "skipped_invalid_matches": skipped,
+            "skipped_duplicate_matches": duplicate_count,
         },
         "matches": rows,
     }
