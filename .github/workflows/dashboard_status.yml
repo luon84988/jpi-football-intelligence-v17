@@ -4,6 +4,8 @@ on:
     paths:
       - 'app/page.js'
       - 'app/dashboard-status.mjs'
+      - 'app/value-observation.mjs'
+      - 'tests/value-observation.test.mjs'
       - 'tests/dashboard-status.test.mjs'
       - '.github/workflows/dashboard_status.yml'
   workflow_dispatch:
@@ -18,7 +20,7 @@ jobs:
         with:
           node-version: '22'
       - name: Verify source-state labels and no fabricated metrics
-        run: node --test tests/dashboard-status.test.mjs
+        run: node --test tests/dashboard-status.test.mjs tests/value-observation.test.mjs
       - name: Install pinned dependencies
         run: npm run install:ci
       - name: Build full Worker UI
