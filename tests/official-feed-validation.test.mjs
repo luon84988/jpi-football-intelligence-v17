@@ -1,7 +1,7 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
 import { readFile } from 'node:fs/promises';
-import { summarizeOfficialFeed } from '../worker/official-feed-validation.ts';
+import { summarizeOfficialFeed, selectPublishableOfficialFeed } from '../worker/official-feed-validation.ts';
 
 const valid = (id = '20261024001') => ({
   sourceEventId: id, league: '测试联赛', home: '主队', away: '客队',
@@ -37,7 +37,8 @@ test('invalid team, league and odds are rejected', () => {
 });
 test('Worker requires publishable rows before reporting live source success', async () => {
   const source = await readFile(new URL('../worker/index.ts', import.meta.url), 'utf8');
-  assert.match(source, /const feedQuality = summarizeOfficialFeed\(matches\)/);
+  assert.match(source, /const feedSelection = selectPublishableOfficialFeed\(matches\)/);
+  assert.match(source, /matches: feedSelection\.matches/);
   assert.match(source, /if \(feedQuality\.publishableCount > 0\)/);
   assert.match(source, /publishableCount: feedQuality\.publishableCount/);
 });
@@ -46,4 +47,36 @@ test('an invalid earlier quote does not suppress a later valid quote for same ev
   const observations = [{ ...valid(), odds: ['—', '—', '—'] }, valid()];
   assert.deepEqual(summarizeOfficialFeed(observations), {
     totalCount: 2, publishableCount: 1, invalidCount: 1, duplicateCount: 0 });
+});
+
+test('only unique valid odds reach the live cache payload', () => {
+  const rows = [valid(), valid(), { ...valid('20261024002'), odds: ['—', '3.2', '4.0'] },
+    valid('undefined'), valid('20261024003')];
+  const selection = selectPublishableOfficialFeed(rows);
+  assert.deepEqual(selection.matches.map(match => match.sourceEventId),
+    ['20261024001', '20261024003']);
+  assert.deepEqual(selection.quality, {
+    totalCount: 5, publishableCount: 2, invalidCount: 3, duplicateCount: 1 });
+  assert.deepEqual(summarizeOfficialFeed(rows), selection.quality);
+});
+
+test('an invalid first observation cannot hide a later valid quote', () => {
+  const selection = selectPublishableOfficialFeed([
+    { ...valid(), odds: ['—', '—', '—'] }, valid()]);
+  assert.deepEqual(selection.matches, [valid()]);
+  assert.equal(selection.quality.duplicateCount, 0);
+});
+
+test('event identifiers are normalized before persistence', () => {
+  const selection = selectPublishableOfficialFeed([
+    valid(' 20261024001 '), valid('20261024001')]);
+  assert.equal(selection.matches[0].sourceEventId, '20261024001');
+  assert.equal(selection.quality.duplicateCount, 1);
+});
+
+test('all-invalid source has no rows eligible for D1 persistence', () => {
+  const selection = selectPublishableOfficialFeed([
+    null, [], { ...valid(), league: '' }]);
+  assert.deepEqual(selection.matches, []);
+  assert.equal(selection.quality.publishableCount, 0);
 });

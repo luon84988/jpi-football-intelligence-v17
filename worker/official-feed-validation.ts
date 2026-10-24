@@ -1,11 +1,16 @@
-/** Count official fixtures with usable 1X2 odds; API reachability alone is not data health. */
-export function summarizeOfficialFeed(matches: unknown[]): {
+/** Only validated, unique official 1X2 observations may enter the live D1 cache. */
+type OfficialFeedQuality = {
   totalCount: number; publishableCount: number; invalidCount: number; duplicateCount: number;
+};
+
+export function selectPublishableOfficialFeed(matches: unknown[]): {
+  matches: Record<string, unknown>[]; quality: OfficialFeedQuality;
 } {
   const seen = new Set<string>();
-  let publishableCount = 0, duplicateCount = 0;
+  const selected: Record<string, unknown>[] = [];
+  let duplicateCount = 0;
   for (const candidate of matches) {
-    if (!candidate || typeof candidate !== "object") continue;
+    if (!candidate || typeof candidate !== "object" || Array.isArray(candidate)) continue;
     const match = candidate as Record<string, unknown>;
     const id = typeof match.sourceEventId === "string" ? match.sourceEventId.trim() : "";
     if (!id || /^(undefined|null|none|nan|unknown|-)$/i.test(id)) continue;
@@ -22,8 +27,15 @@ export function summarizeOfficialFeed(matches: unknown[]): {
           return Number.isFinite(parsed) && parsed > 1;
         })) continue;
     seen.add(id);
-    publishableCount++;
+    selected.push({ ...match, sourceEventId: id });
   }
-  return { totalCount: matches.length, publishableCount,
-    invalidCount: matches.length - publishableCount, duplicateCount };
+  return { matches: selected, quality: {
+    totalCount: matches.length, publishableCount: selected.length,
+    invalidCount: matches.length - selected.length, duplicateCount,
+  } };
+}
+
+/** Backwards-compatible summary for monitoring and regression tests. */
+export function summarizeOfficialFeed(matches: unknown[]): OfficialFeedQuality {
+  return selectPublishableOfficialFeed(matches).quality;
 }
