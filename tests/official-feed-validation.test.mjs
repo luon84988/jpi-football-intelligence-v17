@@ -41,3 +41,9 @@ test('Worker requires publishable rows before reporting live source success', as
   assert.match(source, /if \(feedQuality\.publishableCount > 0\)/);
   assert.match(source, /publishableCount: feedQuality\.publishableCount/);
 });
+
+test('an invalid earlier quote does not suppress a later valid quote for same event', () => {
+  const observations = [{ ...valid(), odds: ['—', '—', '—'] }, valid()];
+  assert.deepEqual(summarizeOfficialFeed(observations), {
+    totalCount: 2, publishableCount: 1, invalidCount: 1, duplicateCount: 0 });
+});
