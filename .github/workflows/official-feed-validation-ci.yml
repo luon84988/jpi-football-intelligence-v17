@@ -1,0 +1,25 @@
+name: Official Feed Publishability Regression
+on:
+  pull_request:
+    paths:
+      - 'worker/official-feed-validation.ts'
+      - 'worker/index.ts'
+      - 'tests/official-feed-validation.test.mjs'
+      - '.github/workflows/official-feed-validation-ci.yml'
+  workflow_dispatch:
+permissions:
+  contents: read
+jobs:
+  official-feed:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+      - name: Validate official source health cannot be satisfied by unpriced matches
+        run: node --experimental-strip-types --test tests/official-feed-validation.test.mjs
+      - name: Install pinned dependencies
+        run: npm run install:ci
+      - name: Build full Worker
+        run: npm run build
