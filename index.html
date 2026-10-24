@@ -45,7 +45,7 @@
                                 <div class="text-xs text-gray-400 mt-1">风险 ${escapeHtml(m.risk || '-')}</div>
                             </div>
                         </div>
-                        ${m.prob_home != null && m.scores ? `<div class="text-xs text-gray-300 mt-2">胜 ${pc(m.prob_home)} · 平 ${pc(m.prob_draw)} · 负 ${pc(m.prob_away)} ｜ 预期进球 ${escapeHtml(m.xg_home)}-${escapeHtml(m.xg_away)} ｜ 比分 ${escapeHtml(m.scores.join(' / '))} ｜ 大2.5 ${pc(m.over25)}</div>` : ''}
+                        ${[m.prob_home, m.prob_draw, m.prob_away].every(v => typeof v === 'number' && Number.isFinite(v) && v >= 0 && v <= 1) ? `<div class="text-xs text-gray-300 mt-2">市场去水概率（非独立模型）：胜 ${pc(m.prob_home)} · 平 ${pc(m.prob_draw)} · 负 ${pc(m.prob_away)}</div>` : ''}
                     </div>
                 `).join('');
             } catch(e) { document.getElementById('update-time').innerText = '数据读取失败：请检查 GitHub Pages 数据文件与自动更新任务'; document.getElementById('match-list').textContent = '暂时无法读取已发布的分析结果。'; }
