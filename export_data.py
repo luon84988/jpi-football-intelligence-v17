@@ -74,8 +74,8 @@ def fetch_live_data(endpoint: str) -> dict:
         raise ExportError("Live API is missing its updatedAt timestamp.")
     try:
         timestamp = datetime.fromisoformat(updated_at.replace("Z", "+00:00"))
-        if timestamp.tzinfo is None:
-            timestamp = timestamp.replace(tzinfo=timezone.utc)
+        if timestamp.tzinfo is None or timestamp.utcoffset() is None:
+            raise ExportError("Live API updatedAt must include an explicit timezone offset or Z.")
     except ValueError as exc:
         raise ExportError("Live API updatedAt is not a valid ISO-8601 timestamp.") from exc
     age = (datetime.now(timezone.utc) - timestamp.astimezone(timezone.utc)).total_seconds()
