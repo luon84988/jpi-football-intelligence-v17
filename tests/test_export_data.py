@@ -20,6 +20,33 @@ class ExportDataTests(unittest.TestCase):
         with self.assertRaises(export_data.ExportError):
             export_data.source_endpoint("")
 
+    def test_source_timestamp_requires_explicit_timezone(self):
+        import io
+        import json
+        from datetime import datetime, timezone
+        from unittest.mock import patch
+
+        class FakeResponse(io.BytesIO):
+            status = 200
+
+        def fetch_with_timestamp(value):
+            payload = {
+                "updatedAt": value,
+                "source": "中国体育彩票官方竞彩",
+                "sourceHealth": {"succeeded": 1, "hasData": True},
+                "matches": [{"league": "测试", "home": "主队", "away": "客队", "odds": [2, 3, 4]}],
+            }
+            response = FakeResponse(json.dumps(payload).encode("utf-8"))
+            with patch("export_data.urlopen", return_value=response):
+                return export_data.fetch_live_data("https://example.test/api/football/live")
+
+        now = datetime.now(timezone.utc)
+        with self.assertRaisesRegex(export_data.ExportError, "explicit timezone"):
+            fetch_with_timestamp(now.replace(tzinfo=None).isoformat())
+        with self.assertRaisesRegex(export_data.ExportError, "explicit timezone"):
+            fetch_with_timestamp(now.date().isoformat())
+        self.assertEqual(fetch_with_timestamp(now.isoformat())["source"], "中国体育彩票官方竞彩")
+
     def test_market_probabilities_are_de_vigged(self):
         probabilities = export_data.odds_probabilities(["2.00", "3.00", "4.00"])
         self.assertIsNotNone(probabilities)
