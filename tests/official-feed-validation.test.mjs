@@ -1,0 +1,43 @@
+import test from 'node:test';
+import assert from 'node:assert/strict';
+import { readFile } from 'node:fs/promises';
+import { summarizeOfficialFeed } from '../worker/official-feed-validation.ts';
+
+const valid = (id = '20261024001') => ({
+  sourceEventId: id, league: '测试联赛', home: '主队', away: '客队',
+  odds: ['2.10', '3.25', '3.50'],
+});
+test('valid official 1X2 observation is publishable', () => {
+  assert.deepEqual(summarizeOfficialFeed([valid()]), {
+    totalCount: 1, publishableCount: 1, invalidCount: 0, duplicateCount: 0 });
+});
+test('official source may return fixtures but zero publishable odds', () => {
+  const bad = [{ ...valid(), odds: ['—', '—', '—'] },
+    { ...valid('20261024002'), odds: ['', '3.2', '4.0'] }];
+  assert.equal(summarizeOfficialFeed(bad).publishableCount, 0);
+});
+test('missing or placeholder event identity is rejected', () => {
+  for (const id of ['', 'undefined', 'null', 'unknown', '-']) {
+    assert.equal(summarizeOfficialFeed([valid(id)]).publishableCount, 0, id);
+  }
+});
+test('duplicate event identity does not inflate valid count', () => {
+  assert.deepEqual(summarizeOfficialFeed([valid(), valid(), valid('20261024002')]), {
+    totalCount: 3, publishableCount: 2, invalidCount: 1, duplicateCount: 1 });
+});
+test('invalid team, league and odds are rejected', () => {
+  const bad = [
+    { ...valid(), league: '' },
+    { ...valid('2'), home: null },
+    { ...valid('3'), odds: ['2.1', 'NaN', '3.4'] },
+    { ...valid('4'), odds: [2.1, Infinity, 3.4] },
+    { ...valid('5'), odds: [1, 3, 4] },
+  ];
+  assert.equal(summarizeOfficialFeed(bad).publishableCount, 0);
+});
+test('Worker requires publishable rows before reporting live source success', async () => {
+  const source = await readFile(new URL('../worker/index.ts', import.meta.url), 'utf8');
+  assert.match(source, /const feedQuality = summarizeOfficialFeed\(matches\)/);
+  assert.match(source, /if \(feedQuality\.publishableCount > 0\)/);
+  assert.match(source, /publishableCount: feedQuality\.publishableCount/);
+});
