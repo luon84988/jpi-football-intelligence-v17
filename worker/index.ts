@@ -2,6 +2,7 @@
 import { handleImageOptimization, DEFAULT_DEVICE_SIZES, DEFAULT_IMAGE_SIZES } from "vinext/server/image-optimization";
 import handler from "vinext/server/app-router-entry";
 import { SPORTTERY_SNAPSHOT } from "./sporttery-snapshot";
+import { archivedSnapshotResponse } from "./archived-snapshot-response";
 import { analyzeStyleMatchup } from "./style-rules";
 import { ensureLeagueDatabase, seedRows } from "./league-database";
 import { ensureTeamDatabase, seedTeamData } from "./team-database";
@@ -143,7 +144,7 @@ const worker = {
           const labels = ["主队倾向", "均衡 / 防平", "客队倾向"]; const hhadText = [item.hhadH, item.hhadD, item.hhadA].filter(Boolean).join("/") || "未开售"; const hhad = [item.hhadH, item.hhadD, item.hhadA].map(Number); const model = validHad ? scoreModel(hadOdds, hhad, Number(item.handicap || 0), item.league, leagueProfiles.get(item.league), { home: teamStrengths.get(item.home), away: teamStrengths.get(item.away), homeName: item.home, awayName: item.away }) : null;
           return { league: item.league, group: classifyLeague(item.league), tier: "竞彩", state: "pre", time: `${item.date.slice(5).replace("-", "/")} ${item.time}`, home: item.home, away: item.away, dq: validHad ? "A" : "C", edge: total ? `${((1 / total) * 100).toFixed(1)}%返还` : "—", risk: model && model.fitError < .035 ? "B" : "C", signal: validHad ? labels[maxIndex] : "赔率未开售", score: model?.topScores[0]?.score || "—", scoreConfidence: model?.confidence || 0, topScores: model?.topScores || [], homeXg: model?.homeXg ?? null, awayXg: model?.awayXg ?? null, marketHomeXg: model?.marketHomeXg ?? null, marketAwayXg: model?.marketAwayXg ?? null, style: model?.style ?? null, modelFitError: model?.fitError ?? null, pdi: total ? Number(Math.max(...probabilities).toFixed(2)) : .5, draw: `让${item.handicap || "0"} ${hhadText}`, odds: validHad ? hadOdds.map((v) => v.toFixed(2)) : ["—", "—", "—"], status: `${item.matchNum} · ${validHad ? hadOdds.map((v) => v.toFixed(2)).join("/") : "未开售"}`, sourceEventId: item.matchId, salesDate: item.businessDate, matchNum: item.matchNum, handicap: item.handicap, hhadOdds: hhadText, sellStatus: item.sellStatus };
         });
-        return Response.json({ matches, updatedAt: new Date().toISOString(), source: "中国体育彩票官方快照", sourceHealth: { requested: 1, succeeded: 1, hasData: true, officialCount: matches.length, mode: "verified_snapshot" } }, { headers: { "Cache-Control": "public, max-age=300, s-maxage=900" } });
+        return archivedSnapshotResponse(matches);
       }
       const leagues = [
         ["日职", "jpn.1", "日韩联赛", "一级"], ["韩K职", "kor.1", "日韩联赛", "一级"],

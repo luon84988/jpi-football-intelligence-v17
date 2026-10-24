@@ -1,0 +1,29 @@
+name: Archived Football Fallback Safety
+
+on:
+  pull_request:
+    paths:
+      - 'worker/index.ts'
+      - 'worker/archived-snapshot-response.ts'
+      - 'tests/archived-snapshot-response.test.mjs'
+      - '.github/workflows/archived-fallback-safety.yml'
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  verify-archived-fallback:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '22.13.0'
+          cache: 'npm'
+      - name: Install dependencies
+        run: npm ci
+      - name: Verify archived snapshot provenance and fail-closed freshness
+        run: node --experimental-strip-types --test tests/archived-snapshot-response.test.mjs
+      - name: Build full Worker application
+        run: npm run build
