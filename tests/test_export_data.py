@@ -76,5 +76,46 @@ class ExportDataTests(unittest.TestCase):
             export_data.build_dashboard_payload(source)
 
 
+
+class ProductionMonitorParityTests(unittest.TestCase):
+    """A green health check must mean the exporter can publish valid odds."""
+
+    @staticmethod
+    def official_payload(odds):
+        return {
+            "updatedAt": "2026-10-24T05:00:00Z",
+            "source": "中国体育彩票官方竞彩",
+            "sourceHealth": {"succeeded": 1, "hasData": True},
+            "matches": [{"league": "测试联赛", "home": "主队", "away": "客队",
+                         "sourceEventId": "official-1", "odds": odds}],
+        }
+
+    def test_monitor_rejects_unpublishable_odds(self):
+        from unittest.mock import patch
+        from scripts import monitor_production
+        with patch.dict("os.environ", {"JPI_API_URL": "https://jpi.example.com"}), \\
+             patch.object(monitor_production, "fetch_live_data", return_value=self.official_payload(["—", "3.2", "4.1"])):
+            with self.assertRaises(export_data.ExportError):
+                monitor_production.check()
+
+    def test_monitor_reports_exportable_count(self):
+        import contextlib
+        import io
+        import json
+        from unittest.mock import patch
+        from scripts import monitor_production
+        payload = self.official_payload(["2.1", "3.2", "4.1"])
+        payload["matches"].append({"league": "测试联赛", "home": "第二主队", "away": "第二客队",
+                                   "sourceEventId": "official-2", "odds": ["—", "3.2", "4.1"]})
+        output = io.StringIO()
+        with patch.dict("os.environ", {"JPI_API_URL": "https://jpi.example.com"}), \\
+             patch.object(monitor_production, "fetch_live_data", return_value=payload), \\
+             contextlib.redirect_stdout(output):
+            self.assertEqual(monitor_production.check(), 0)
+        result = json.loads(output.getvalue())
+        self.assertEqual(result["status"], "healthy")
+        self.assertEqual(result["matches"], 1)
+        self.assertEqual(result["skippedInvalidMatches"], 1)
+
 if __name__ == "__main__":
     unittest.main()
