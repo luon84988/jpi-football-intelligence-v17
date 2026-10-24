@@ -8,7 +8,7 @@ sys.path.insert(0, str(Path(__file__).resolve().parents[1]))
 from datetime import datetime, timezone
 from urllib.request import Request, urlopen
 from urllib.error import URLError, HTTPError
-from export_data import source_endpoint, fetch_live_data, ExportError
+from export_data import source_endpoint, fetch_live_data, build_dashboard_payload, ExportError
 
 def check():
     base = os.environ.get("JPI_API_URL", "")
@@ -16,11 +16,12 @@ def check():
         raise ExportError("JPI_API_URL is not configured")
     endpoint = source_endpoint(base)
     payload = fetch_live_data(endpoint)
-    count = len(payload["matches"])
-    if count < 1:
-        raise ExportError("No official matches")
+    export = build_dashboard_payload(payload)
+    count = export["summary"]["total_matches"]
     print(json.dumps({"status": "healthy", "checkedAt": datetime.now(timezone.utc).isoformat(),
-        "source": payload["source"], "matches": count, "sourceUpdatedAt": payload["updatedAt"]},
+        "source": payload["source"], "matches": count,
+        "skippedInvalidMatches": export["summary"]["skipped_invalid_matches"],
+        "sourceUpdatedAt": payload["updatedAt"]},
         ensure_ascii=False))
     return 0
 
