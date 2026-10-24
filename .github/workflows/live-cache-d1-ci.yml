@@ -22,3 +22,7 @@ jobs:
           node-version: '22'
       - name: Verify awaited D1 write and readback fail-closed behavior
         run: node --experimental-strip-types --test tests/live-football-cache.test.mjs
+      - name: Install pinned dependencies
+        run: npm run install:ci
+      - name: Build full Worker
+        run: npm run build
