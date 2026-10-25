@@ -13,6 +13,7 @@ import { ensureSourceDatabase, refreshApiFootball } from "./source-database";
 import { getBacktestOverview } from "./backtest-database";
 import { getPlayerStatistics } from "./player-statistics-database";
 import { readLiveFootballCache, saveLiveFootballCache } from "./live-football-cache";
+import { probeLiveFootballStorage } from "./live-football-storage-health";
 
 interface Env {
   ASSETS: Fetcher;
@@ -94,6 +95,14 @@ const worker = {
       }
     }
     if(url.pathname==="/api/teams"||url.pathname==="/api/players/dynamics"){let data:any,storage="D1";try{data=await ensureTeamDatabase(env.DB)}catch{data=seedTeamData();storage="seed_fallback"}if(url.pathname==="/api/players/dynamics")return Response.json({players:data.players,count:data.players.length,storage,warning:data.players.length?null:"尚未接入权威球员动态源，不生成虚假伤停记录"});const league=url.searchParams.get("league"),rankings=league?data.rankings.filter((x:any)=>x.league===league):data.rankings,strengthMap=new Map(data.strengths.map((x:any)=>[x.team_name,x]));return Response.json({teams:rankings.map((x:any)=>({...x,strength:strengthMap.get(x.name)||null})),count:rankings.length,storage,rankingDefinition:{official_rank:"官方联赛排名",system_rank:"综合排名",market_rating:"当期竞彩去水概率代理，仅用于冷启动"}})}
+
+    if (url.pathname === "/api/football/storage-health") {
+      const result = await probeLiveFootballStorage(env.DB);
+      return Response.json(result, {
+        status: result.status === "cache_present" ? 200 : 503,
+        headers: { "Cache-Control": "no-store" },
+      });
+    }
 
     if (url.pathname === "/api/football/live") {
       let leagueProfiles = new Map<string, any>(), teamStrengths = new Map<string, any>();

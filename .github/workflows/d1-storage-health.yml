@@ -1,0 +1,29 @@
+name: D1 Read-only Live Cache Probe
+
+on:
+  pull_request:
+    paths:
+      - 'worker/index.ts'
+      - 'worker/live-football-storage-health.ts'
+      - 'tests/live-football-storage-health.test.mjs'
+      - '.github/workflows/d1-storage-health.yml'
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  verify-d1-probe:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '22.13.0'
+          cache: 'npm'
+      - name: Install dependencies
+        run: npm ci
+      - name: Test read-only D1 probe and failure isolation
+        run: node --experimental-strip-types --test tests/live-football-storage-health.test.mjs
+      - name: Build full Worker application
+        run: npm run build
