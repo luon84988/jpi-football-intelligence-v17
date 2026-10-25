@@ -66,6 +66,33 @@ test('nonofficial, stale, malformed and duplicate observations fail closed befor
   }
 });
 
+test('official sales dates normalize to one stable market identity', async () => {
+  const db = fakeDb();
+  const canonical = await appendOfficialOddsHistory(db, fixture());
+  for (const salesDate of ['20261025', '2026/10/25']) {
+    const next = fixture(); next.matches[0].salesDate = salesDate;
+    const result = await appendOfficialOddsHistory(db, next);
+    assert.equal(result.snapshotHash, canonical.snapshotHash);
+  }
+  assert.equal(db.rows.size, 1);
+});
+
+test('invalid sales dates and placeholder event IDs fail before D1 operations', async () => {
+  const invalid = [
+    { salesDate: '' }, { salesDate: null }, { salesDate: '2026-02-30' },
+    { salesDate: '2026-13-01' }, { salesDate: '2026-10-2' },
+    { sourceEventId: 'UNKNOWN' }, { sourceEventId: 'None' },
+    { sourceEventId: false }, { sourceEventId: ' - ' },
+  ];
+  for (const change of invalid) {
+    const db = fakeDb();
+    const input = fixture();
+    input.matches[0] = { ...input.matches[0], ...change };
+    await assert.rejects(appendOfficialOddsHistory(db, input), /OFFICIAL_HISTORY_(SALES_DATE|EVENT_ID)_INVALID/);
+    assert.equal(db.statements.length, 0);
+  }
+});
+
 test('missing D1, insert errors and readback mismatch cannot claim persistence', async () => {
   await assert.rejects(appendOfficialOddsHistory(undefined, fixture()), /D1_UNAVAILABLE/);
   await assert.rejects(appendOfficialOddsHistory(fakeDb({ failInsert: true }), fixture()), /D1_WRITE_FAILED/);
