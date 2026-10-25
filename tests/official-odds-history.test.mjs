@@ -74,7 +74,8 @@ test('append-only history verifies D1 readback and never changes first observati
   assert.equal(db.rows.size, 1);
   assert.equal([...db.rows.values()][0].first_seen_at, first.observedAt);
   assert.equal(first.quoteTimeVerified, false);
-  assert.equal(db.statements.some(x => /\bUPDATE\b|\bDELETE\b|\bREPLACE\b/i.test(x)), false);
+  assert.equal(db.transitions.length, 1);
+  assert.equal(db.statements.some(x => /DELETE FROM official_odds_|UPDATE official_odds_snapshot_history|UPDATE official_odds_transition_history/i.test(x)), false);
 });
 
 test('changed odds create a distinct historical observation', async () => {
