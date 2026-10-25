@@ -5,6 +5,20 @@
 const OFFICIAL_SOURCE = "中国体育彩票官方竞彩";
 const MAX_SNAPSHOT_BYTES = 500_000;
 
+/** Normalize official sales-day identity without accepting invalid calendar dates. */
+function normalizeSalesDate(raw: unknown): string {
+  if (typeof raw !== "string" && typeof raw !== "number") throw new Error("OFFICIAL_HISTORY_SALES_DATE_INVALID");
+  const value = String(raw).trim();
+  const parts = /^(\d{4})([-/]?)(\d{2})\2(\d{2})$/.exec(value);
+  if (!parts) throw new Error("OFFICIAL_HISTORY_SALES_DATE_INVALID");
+  const year = Number(parts[1]), month = Number(parts[3]), day = Number(parts[4]);
+  const date = new Date(Date.UTC(year, month - 1, day));
+  if (date.getUTCFullYear() !== year || date.getUTCMonth() + 1 !== month || date.getUTCDate() !== day) {
+    throw new Error("OFFICIAL_HISTORY_SALES_DATE_INVALID");
+  }
+  return `${parts[1]}-${parts[3]}-${parts[4]}`;
+}
+
 function normalizeOfficialOdds(payload: Record<string, unknown>) {
   if (payload.source !== OFFICIAL_SOURCE || payload.stale === true) throw new Error("OFFICIAL_HISTORY_SOURCE_NOT_VERIFIED");
   const health = payload.sourceHealth as Record<string, unknown> | undefined;
@@ -18,8 +32,11 @@ function normalizeOfficialOdds(payload: Record<string, unknown>) {
   const matches = payload.matches.map((raw) => {
     if (!raw || typeof raw !== "object" || Array.isArray(raw)) throw new Error("OFFICIAL_HISTORY_MATCH_INVALID");
     const match = raw as Record<string, unknown>;
-    const id = String(match.sourceEventId ?? "").trim();
-    if (!id || id === "undefined" || id === "null" || ids.has(id)) throw new Error("OFFICIAL_HISTORY_EVENT_ID_INVALID");
+    const rawId = match.sourceEventId;
+    if (typeof rawId !== "string" && typeof rawId !== "number") throw new Error("OFFICIAL_HISTORY_EVENT_ID_INVALID");
+    const id = String(rawId).trim();
+    if (!id || /^(?:undefined|null|none|nan|unknown|-)$/i.test(id) || ids.has(id)) throw new Error("OFFICIAL_HISTORY_EVENT_ID_INVALID");
+    const salesDate = normalizeSalesDate(match.salesDate);
     ids.add(id);
     const odds = match.odds;
     if (!Array.isArray(odds) || odds.length !== 3) throw new Error("OFFICIAL_HISTORY_ODDS_INVALID");
@@ -28,7 +45,7 @@ function normalizeOfficialOdds(payload: Record<string, unknown>) {
     for (const key of ["league", "home", "away"]) {
       if (typeof match[key] !== "string" || !(match[key] as string).trim()) throw new Error("OFFICIAL_HISTORY_TEAM_INVALID");
     }
-    return { eventId: id, salesDate: String(match.salesDate ?? ""), league: match.league,
+    return { eventId: id, salesDate, league: match.league,
       home: match.home, away: match.away, odds: normalizedOdds };
   });
   matches.sort((a, b) => a.eventId.localeCompare(b.eventId));
