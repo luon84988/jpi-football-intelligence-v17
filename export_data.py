@@ -14,7 +14,7 @@ from datetime import datetime, timezone
 from pathlib import Path
 from urllib.error import HTTPError, URLError
 from urllib.parse import urlparse
-from urllib.request import Request, urlopen
+from urllib.request import Request, HTTPRedirectHandler, build_opener
 
 OUTPUT = Path(__file__).with_name("dashboard_data.json")
 MAX_AGE_SECONDS = int(os.getenv("MAX_SOURCE_AGE_SECONDS", "1800"))
@@ -40,6 +40,18 @@ def source_endpoint(base_url: str) -> str:
     return base_url + "/api/football/live"
 
 
+class RejectRedirects(HTTPRedirectHandler):
+    """Never forward an API bearer token to a redirect target.
+
+    urllib's default redirect handler copies request headers, including
+    Authorization, even when the redirect changes origin or protocol.
+    Treat all redirects as source errors instead of following them.
+    """
+
+    def redirect_request(self, req, fp, code, msg, headers, newurl):
+        return None
+
+
 def fetch_live_data(endpoint: str) -> dict:
     headers = {"Accept": "application/json", "User-Agent": "JPi-V17-dashboard-export/1.0"}
     api_key = os.getenv("API_KEY", "").strip()
@@ -49,7 +61,7 @@ def fetch_live_data(endpoint: str) -> dict:
         headers["Authorization"] = f"Bearer {api_key}"
     request = Request(endpoint, headers=headers, method="GET")
     try:
-        with urlopen(request, timeout=25) as response:
+        with build_opener(RejectRedirects()).open(request, timeout=25) as response:
             if response.status != 200:
                 raise ExportError(f"Live API returned HTTP {response.status}.")
             raw = response.read(5_000_001)

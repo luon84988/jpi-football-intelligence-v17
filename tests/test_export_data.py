@@ -45,6 +45,57 @@ class ExportDataTests(unittest.TestCase):
             with self.assertRaisesRegex(export_data.ExportError, "requires HTTPS"):
                 export_data.fetch_live_data("http://localhost:8787/api/football/live")
 
+    def test_redirect_handler_never_forwards_bearer_to_new_origin(self):
+        from urllib.request import Request
+
+        request = Request(
+            "https://worker.example.test/api/football/live",
+            headers={"Authorization": "Bearer dummy-test-token"},
+        )
+        self.assertIsNone(
+            export_data.RejectRedirects().redirect_request(
+                request, None, 302, "Found", {},
+                "https://untrusted.example.test/collect",
+            )
+        )
+        self.assertIsNone(
+            export_data.RejectRedirects().redirect_request(
+                request, None, 302, "Found", {},
+                "http://worker.example.test/collect",
+            )
+        )
+
+    def test_http_redirect_fails_closed_without_following_location(self):
+        import threading
+        from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
+        from unittest.mock import patch
+
+        seen_paths = []
+
+        class RedirectingHandler(BaseHTTPRequestHandler):
+            def do_GET(self):
+                seen_paths.append(self.path)
+                self.send_response(302)
+                self.send_header("Location", "/redirected")
+                self.end_headers()
+
+            def log_message(self, *args):
+                pass
+
+        server = ThreadingHTTPServer(("127.0.0.1", 0), RedirectingHandler)
+        thread = threading.Thread(target=server.serve_forever, daemon=True)
+        thread.start()
+        try:
+            endpoint = f"http://127.0.0.1:{server.server_port}/api/football/live"
+            with patch.dict("os.environ", {"API_KEY": ""}):
+                with self.assertRaisesRegex(export_data.ExportError, "HTTP 302"):
+                    export_data.fetch_live_data(endpoint)
+            self.assertEqual(seen_paths, ["/api/football/live"])
+        finally:
+            server.shutdown()
+            server.server_close()
+            thread.join(timeout=3)
+
     def test_market_probabilities_are_de_vigged(self):
         probabilities = export_data.odds_probabilities(["2.00", "3.00", "4.00"])
         self.assertIsNotNone(probabilities)
