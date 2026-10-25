@@ -13,6 +13,7 @@ import { ensureSourceDatabase, refreshApiFootball } from "./source-database";
 import { getBacktestOverview } from "./backtest-database";
 import { getPlayerStatistics } from "./player-statistics-database";
 import { readLiveFootballCache, saveLiveFootballCache } from "./live-football-cache";
+import { appendOfficialOddsHistory } from "./official-odds-history";
 import { selectPublishableOfficialFeed } from "./official-feed-validation";
 
 interface Env {
@@ -127,6 +128,7 @@ const worker = {
             const feedQuality = feedSelection.quality;
             if (feedQuality.publishableCount > 0) {
               const payload = { matches: feedSelection.matches, updatedAt: new Date().toISOString(), source: "中国体育彩票官方竞彩", stale: false, sourceHealth: { requested: 1, succeeded: 1, hasData: true, officialCount: matches.length, publishableCount: feedQuality.publishableCount, invalidCount: feedQuality.invalidCount, duplicateCount: feedQuality.duplicateCount } };
+              await appendOfficialOddsHistory(env.DB, payload);
               await saveLiveFootballCache(env.DB, payload);
               return Response.json(payload, { headers: { "Cache-Control": "public, max-age=60, s-maxage=180", "X-Football-Data": "sporttery-live" } });
             }
