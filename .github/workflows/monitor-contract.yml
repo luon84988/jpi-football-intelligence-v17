@@ -1,0 +1,25 @@
+name: JPi Production Monitor Contract Tests
+
+on:
+  pull_request:
+    paths:
+      - 'scripts/monitor_production.py'
+      - 'export_data.py'
+      - 'tests/test_monitor_production.py'
+      - 'tests/test_export_data.py'
+      - '.github/workflows/monitor-contract.yml'
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  verify-monitor-contract:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.12'
+      - name: Verify exporter and read-only production monitor contracts
+        run: python -m unittest discover -s tests -p 'test_*.py' -v
