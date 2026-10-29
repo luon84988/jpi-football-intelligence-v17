@@ -4,6 +4,7 @@ on:
   pull_request:
     paths:
       - 'export_data.py'
+      - '.github/workflows/production_health.yml'
       - 'tests/test_export_data.py'
       - '.github/workflows/auto_run.yml'
   workflow_dispatch:
@@ -56,6 +57,7 @@ jobs:
         env:
           JPI_API_URL: ${{ vars.JPI_API_URL }}
           API_KEY: ${{ secrets.API_KEY }}
+          SITES_SERVICE_TOKEN: ${{ secrets.SITES_SERVICE_TOKEN }}
           MAX_SOURCE_AGE_SECONDS: '1800'
         run: |
           python - <<'PY'
@@ -70,6 +72,7 @@ jobs:
         env:
           JPI_API_URL: ${{ vars.JPI_API_URL }}
           API_KEY: ${{ secrets.API_KEY }}
+          SITES_SERVICE_TOKEN: ${{ secrets.SITES_SERVICE_TOKEN }}
           MAX_SOURCE_AGE_SECONDS: '1800'
         run: python export_data.py
 
@@ -84,3 +87,4 @@ jobs:
           fi
           git commit -m "Auto-update dashboard data from live API [skip ci]"
           git push origin HEAD:main
+

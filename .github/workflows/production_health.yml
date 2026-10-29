@@ -17,5 +17,8 @@ jobs:
       - name: Check official Worker feed freshness and provenance
         env:
           JPI_API_URL: ${{ vars.JPI_API_URL }}
+          API_KEY: ${{ secrets.API_KEY }}
+          SITES_SERVICE_TOKEN: ${{ secrets.SITES_SERVICE_TOKEN }}
           MAX_SOURCE_AGE_SECONDS: '1800'
         run: python scripts/monitor_production.py
+
