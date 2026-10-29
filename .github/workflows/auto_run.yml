@@ -57,6 +57,7 @@ jobs:
         env:
           JPI_API_URL: ${{ vars.JPI_API_URL }}
           API_KEY: ${{ secrets.API_KEY }}
+          SITES_SERVICE_TOKEN: ${{ secrets.SITES_SERVICE_TOKEN }}
           MAX_SOURCE_AGE_SECONDS: '1800'
         run: |
           python - <<'PY'
@@ -71,6 +72,7 @@ jobs:
         env:
           JPI_API_URL: ${{ vars.JPI_API_URL }}
           API_KEY: ${{ secrets.API_KEY }}
+          SITES_SERVICE_TOKEN: ${{ secrets.SITES_SERVICE_TOKEN }}
           MAX_SOURCE_AGE_SECONDS: '1800'
         run: python export_data.py
 
@@ -85,3 +87,4 @@ jobs:
           fi
           git commit -m "Auto-update dashboard data from live API [skip ci]"
           git push origin HEAD:main
+

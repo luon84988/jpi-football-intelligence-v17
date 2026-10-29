@@ -14,7 +14,7 @@ from datetime import datetime, timezone
 from pathlib import Path
 from urllib.error import HTTPError, URLError
 from urllib.parse import urlparse
-from urllib.request import Request, urlopen
+from urllib.request import HTTPRedirectHandler, Request, build_opener, urlopen
 
 OUTPUT = Path(__file__).with_name("dashboard_data.json")
 MAX_AGE_SECONDS = int(os.getenv("MAX_SOURCE_AGE_SECONDS", "1800"))
@@ -36,14 +36,40 @@ def source_endpoint(base_url: str) -> str:
     return base_url + "/api/football/live"
 
 
-def fetch_live_data(endpoint: str) -> dict:
+SITES_SERVICE_HOST = "jpi-football-intelligence-v17.luonan.chatgpt.site"
+
+
+class RejectCredentialRedirects(HTTPRedirectHandler):
+    def redirect_request(self, req, fp, code, msg, headers, newurl):
+        raise ExportError("Authenticated API redirects are disabled; configure the final trusted endpoint.")
+
+
+def api_request(endpoint: str) -> tuple[Request, bool]:
     headers = {"Accept": "application/json", "User-Agent": "JPi-V17-dashboard-export/1.0"}
-    api_key = os.getenv("API_KEY", "").strip()
-    if api_key:
-        headers["Authorization"] = f"Bearer {api_key}"
-    request = Request(endpoint, headers=headers, method="GET")
+    token = os.getenv("SITES_SERVICE_TOKEN", "").strip()
+    parsed = urlparse(endpoint)
+    if token:
+        if (parsed.scheme != "https" or parsed.hostname != SITES_SERVICE_HOST
+                or parsed.port not in (None, 443) or parsed.username or parsed.password
+                or parsed.path != "/api/football/live" or parsed.query or parsed.fragment):
+            raise ExportError("SITES_SERVICE_TOKEN may only be sent to the configured JPi Sites HTTPS live endpoint.")
+        headers["OAI-Sites-Authorization"] = f"Bearer {token}"
+    else:
+        if parsed.hostname == SITES_SERVICE_HOST:
+            raise ExportError("Configure the SITES_SERVICE_TOKEN Actions secret for the private JPi Site.")
+        api_key = os.getenv("API_KEY", "").strip()
+        if api_key:
+            if parsed.scheme != "https" or parsed.username or parsed.password:
+                raise ExportError("API_KEY requires an HTTPS endpoint without URL credentials.")
+            headers["Authorization"] = f"Bearer {api_key}"
+    return Request(endpoint, headers=headers, method="GET"), bool(token or os.getenv("API_KEY", "").strip())
+
+
+def fetch_live_data(endpoint: str) -> dict:
+    request, authenticated = api_request(endpoint)
+    open_request = build_opener(RejectCredentialRedirects()).open if authenticated else urlopen
     try:
-        with urlopen(request, timeout=25) as response:
+        with open_request(request, timeout=25) as response:
             if response.status != 200:
                 raise ExportError(f"Live API returned HTTP {response.status}.")
             raw = response.read(5_000_001)
@@ -179,3 +205,4 @@ def main() -> int:
 
 if __name__ == "__main__":
     raise SystemExit(main())
+
