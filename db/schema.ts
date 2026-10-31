@@ -1,4 +1,13 @@
-import { integer, real, sqliteTable, text } from "drizzle-orm/sqlite-core";
+import { blob, integer, real, sqliteTable, text } from "drizzle-orm/sqlite-core";
+
+export const domesticSourceCaptures=sqliteTable('domestic_source_captures', {
+  sha256:text('sha256').primaryKey(),source:text('source').notNull(),url:text('url').notNull(),
+  firstSeenAt:text('first_seen_at').notNull(),raw:blob('raw',{mode:'buffer'}).notNull(),
+});
+export const domesticFeedSnapshots=sqliteTable('domestic_feed_snapshots', {
+  snapshotHash:text('snapshot_hash').primaryKey(),salesDate:text('sales_date').notNull(),
+  observedAt:text('observed_at').notNull(),receivedAt:text('received_at').notNull(),payload:text('payload').notNull(),
+});
 
 export const leagueProfiles = sqliteTable("league_profiles", {
   id: integer("id").primaryKey({ autoIncrement: true }),

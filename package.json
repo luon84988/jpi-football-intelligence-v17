@@ -1,7 +1,7 @@
 {
   "name": "jpi-football-intelligence",
-  "version": "17.0.0",
-  "displayName": "JPi Football Intelligence OS V17.0",
+  "version": "18.0.0",
+  "displayName": "JPi Football Intelligence OS V18.0 Hybrid",
   "private": true,
   "engines": {
     "node": ">=22.13.0"

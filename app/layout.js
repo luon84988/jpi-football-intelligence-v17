@@ -1,6 +1,7 @@
 import './globals.css'
-const title='JPi Football Intelligence OS V17.0'
-const description='专业足球智能分析、证据融合、风险控制与回测学习终端。'
+import './gateway.css'
+const title='JPi Football Intelligence OS V18.0 Hybrid'
+const description='V17冠军内核与V18融合挑战者双轨运行的足球概率、证据审计、风险控制与回测终端。'
 
 export const metadata={
  metadataBase:new URL('https://jpi-football-intelligence-v17.luonan.chatgpt.site'),

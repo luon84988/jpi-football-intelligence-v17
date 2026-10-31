@@ -1,9 +1,14 @@
 export const SOURCE_REGISTRY=[
- {code:"sporttery",name:"中国体育彩票",role:"竞彩赛程与官方赔率基准",priority:100,free:true,keyEnv:null,refreshMinutes:5},
- {code:"api_football",name:"API-Football",role:"Bet365赛前欧赔与亚洲盘口主源",priority:90,free:true,keyEnv:"API_FOOTBALL_KEY",refreshMinutes:180},
- {code:"sports_game_odds",name:"SportsGameOdds",role:"Bet365赔率备用源",priority:70,free:true,keyEnv:"SPORTSGAMEODDS_KEY",refreshMinutes:10},
- {code:"espn",name:"ESPN Public Scoreboard",role:"国际赛程降级源",priority:50,free:true,keyEnv:null,refreshMinutes:15},
- {code:"thesportsdb",name:"TheSportsDB",role:"赛程二级降级源",priority:40,free:true,keyEnv:null,refreshMinutes:60},
+ {code:"sporttery",name:"中国竞彩网（中国体育彩票）",role:"T0官方主源：竞彩场次、SP与销售状态",priority:100,free:true,keyEnv:null,refreshMinutes:5},
+ {code:"lottery_gov",name:"国家体育总局彩票管理中心",role:"T0治理源：彩票政策、公告与官方口径核验",priority:98,free:true,keyEnv:null,refreshMinutes:60},
+ {code:"500",name:"500彩票网",role:"T1国内交叉源：场次、SP与赔率快照；不得证明官方停售",priority:85,free:true,keyEnv:null,refreshMinutes:5},
+ {code:"okooo",name:"澳客",role:"T1国内交叉源：赛程、赔率与赛果复核；不得覆盖官方源",priority:85,free:true,keyEnv:null,refreshMinutes:5},
+ {code:"zgzcw",name:"中国足彩网",role:"T2国内观察源：平台销售页；平台截止不等于官方停售",priority:70,free:true,keyEnv:null,refreshMinutes:10},
+ {code:"odds_api_io",name:"Odds-API.io",role:"国际赔率主接口：Bet365/William Hill/Pinnacle/澳门初始与即时欧赔、亚洲盘；不替代国内竞彩清单",priority:65,free:true,keyEnv:"ODDS_API_IO_KEY",refreshMinutes:5},
+ {code:"api_football",name:"API-Football",role:"国际盘口补缺源：Bet365欧赔与亚洲盘",priority:60,free:true,keyEnv:"API_FOOTBALL_KEY",refreshMinutes:180},
+ {code:"sports_game_odds",name:"SportsGameOdds",role:"国际赔率二级补缺源",priority:55,free:true,keyEnv:"SPORTSGAMEODDS_KEY",refreshMinutes:10},
+ {code:"espn",name:"ESPN Public Scoreboard",role:"国际赛程降级源",priority:40,free:true,keyEnv:null,refreshMinutes:15},
+ {code:"thesportsdb",name:"TheSportsDB",role:"国际赛程二级降级源",priority:30,free:true,keyEnv:null,refreshMinutes:60},
 ] as const;
 
 const now=()=>new Date().toISOString();

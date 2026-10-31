@@ -8,7 +8,7 @@ sys.path.insert(0, str(Path(__file__).resolve().parents[1]))
 from datetime import datetime, timezone
 from urllib.request import Request, urlopen
 from urllib.error import URLError, HTTPError
-from export_data import source_endpoint, fetch_live_data, ExportError
+from export_data import source_endpoint, fetch_live_data, build_dashboard_payload, observation_source, ExportError
 
 def check():
     base = os.environ.get("JPI_API_URL", "")
@@ -16,10 +16,10 @@ def check():
         raise ExportError("JPI_API_URL is not configured")
     endpoint = source_endpoint(base)
     payload = fetch_live_data(endpoint)
-    count = len(payload["matches"])
+    count = len(build_dashboard_payload(payload)["matches"])
     if count < 1:
         raise ExportError("No official matches")
-    print(json.dumps({"status": "healthy", "checkedAt": datetime.now(timezone.utc).isoformat(),
+    print(json.dumps({"status": "collection_healthy", "officialFeedVerified": not observation_source(payload), "formalAnalysisReady": False, "analysisStatus": "PRE_ANALYSIS", "upstreamAttempt": payload.get("sourceAttempt"), "checkedAt": datetime.now(timezone.utc).isoformat(),
         "source": payload["source"], "matches": count, "sourceUpdatedAt": payload["updatedAt"]},
         ensure_ascii=False))
     return 0
@@ -30,3 +30,4 @@ if __name__ == "__main__":
     except (ExportError, HTTPError, URLError, TimeoutError, ValueError, KeyError) as exc:
         print(f"::error::JPi monitor failed: {exc}", file=sys.stderr)
         sys.exit(2)
+

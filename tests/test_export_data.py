@@ -40,7 +40,7 @@ class ExportDataTests(unittest.TestCase):
 
     def test_both_jobs_wire_dedicated_secret(self):
         root = Path(__file__).resolve().parents[1]
-        for name, count in [("auto_run.yml", 2), ("production_health.yml", 1)]:
+        for name, count in [("auto_run.yml", 3), ("production_health.yml", 1)]:
             workflow = (root / ".github/workflows" / name).read_text()
             self.assertEqual(workflow.count('SITES_SERVICE_TOKEN: ${{ secrets.SITES_SERVICE_TOKEN }}'), count)
 
@@ -118,4 +118,5 @@ class ExportDataTests(unittest.TestCase):
 
 if __name__ == "__main__":
     unittest.main()
+
 
