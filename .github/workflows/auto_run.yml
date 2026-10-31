@@ -6,6 +6,7 @@ on:
       - 'export_data.py'
       - 'scripts/domestic.py'
       - 'scripts/upload_observations.py'
+      - 'scripts/publish_dashboard.py'
       - 'tests/**'
       - '.github/workflows/production_health.yml'
       - 'tests/test_export_data.py'
@@ -16,6 +17,7 @@ on:
       - 'export_data.py'
       - 'scripts/domestic.py'
       - 'scripts/upload_observations.py'
+      - 'scripts/publish_dashboard.py'
       - '.github/workflows/auto_run.yml'
   workflow_dispatch:
   schedule:
@@ -106,16 +108,5 @@ jobs:
           MAX_SOURCE_AGE_SECONDS: '1800'
         run: python export_data.py
 
-      - name: Commit and push dashboard snapshot only when changed
-        run: |
-          git config --local user.name "github-actions[bot]"
-          git config --local user.email "github-actions[bot]@users.noreply.github.com"
-          git add dashboard_data.json
-          if git diff --cached --quiet; then
-            echo "Validated snapshot is unchanged; no commit required."
-            exit 0
-          fi
-          git commit -m "Auto-update dashboard data from live API [skip ci]"
-          git push origin HEAD:main
-
-
+      - name: Publish snapshot on current main with bounded race retries
+        run: python scripts/publish_dashboard.py
