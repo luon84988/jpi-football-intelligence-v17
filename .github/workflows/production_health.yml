@@ -6,7 +6,7 @@ on:
 permissions:
   contents: read
 jobs:
-  verify-official-feed:
+  verify-current-feed:
     runs-on: ubuntu-latest
     timeout-minutes: 5
     steps:
@@ -14,11 +14,13 @@ jobs:
       - uses: actions/setup-python@v5
         with:
           python-version: '3.12'
-      - name: Check official Worker feed freshness and provenance
+      - name: Check collection freshness; report official and formal readiness separately
         env:
           JPI_API_URL: ${{ vars.JPI_API_URL }}
           API_KEY: ${{ secrets.API_KEY }}
           SITES_SERVICE_TOKEN: ${{ secrets.SITES_SERVICE_TOKEN }}
           MAX_SOURCE_AGE_SECONDS: '1800'
+          JPI_ALLOW_THIRD_PARTY_OBSERVATIONS: '1'
         run: python scripts/monitor_production.py
+
 

@@ -1,0 +1,145 @@
+.gateway {
+  margin-bottom: 12px;
+  border-color: #23443b;
+  background: linear-gradient(90deg, #0d1918, #0b1318);
+}
+
+.gatewayHead {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 12px 14px;
+  border-bottom: 1px solid #1c302d;
+}
+
+.gatewayHead div {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+}
+
+.gatewayHead small {
+  color: #3edcb0;
+  font: 9px monospace;
+  letter-spacing: 1.2px;
+}
+
+.gatewayHead b { font-size: 12px; }
+.gatewayHead > span { color: #6f858d; font: 9px monospace; }
+
+.sources {
+  display: grid;
+  grid-template-columns: repeat(2, 1fr);
+  gap: 8px;
+  padding: 10px 12px;
+}
+
+.source {
+  min-height: 54px;
+  display: grid;
+  grid-template-columns: 12px 1fr auto;
+  gap: 9px;
+  align-items: center;
+  padding: 9px 11px;
+  border: 1px solid #1b2b31;
+  background: #0a1216;
+}
+
+.source > i {
+  width: 7px;
+  height: 7px;
+  border-radius: 50%;
+  background: #c19749;
+  box-shadow: 0 0 8px rgba(193, 151, 73, .35);
+}
+
+.source b { font-size: 11px; }
+.source small { display: block; margin-top: 4px; color: #657b85; font: 9px monospace; }
+.source em { color: #c19749; font: 9px monospace; font-style: normal; }
+.source.ready > i { background: #41dfb3; box-shadow: 0 0 9px rgba(65, 223, 179, .5); }
+.source.ready em { color: #41dfb3; }
+.source.error > i { background: #ff6572; }
+.source.error em { color: #ff6572; }
+.gateway > p { margin: 0; padding: 0 14px 11px; color: #60747d; font-size: 9px; }
+.gateway > p::before { content: 'GOVERNANCE '; margin-right: 7px; color: #b08a48; font-family: monospace; }
+
+.domesticGateway {
+  border-color: #2c594c;
+  background: linear-gradient(90deg, #0c1c19, #0a1418 68%);
+}
+
+.domesticSources {
+  display: grid;
+  grid-template-columns: repeat(5, minmax(0, 1fr));
+  gap: 7px;
+  padding: 10px 12px;
+}
+
+.domesticSource {
+  min-height: 76px;
+  display: grid;
+  grid-template-columns: auto 1fr;
+  gap: 8px;
+  align-content: start;
+  padding: 10px;
+  border: 1px solid #1d3332;
+  background: #091415;
+}
+
+.domesticSource > span {
+  align-self: start;
+  padding: 3px 5px;
+  border: 1px solid #33705f;
+  color: #5ce0bc;
+  font: 9px monospace;
+}
+
+.domesticSource b { display: block; font-size: 11px; }
+.domesticSource small { display: block; margin-top: 5px; color: #6f848b; font-size: 9px; line-height: 1.45; }
+.domesticSource em { grid-column: 1 / -1; margin-top: 3px; color: #b99a5c; font: 9px monospace; font-style: normal; }
+.domesticSource.ready em { color: #43deb3; }
+
+.hybridGovernance {
+  margin-bottom: 12px;
+  border-color: #2a5d57;
+  background: linear-gradient(110deg, #0c1d1b, #0c141a 62%, #111724);
+}
+
+.hybridTracks {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 8px;
+  padding: 10px 12px;
+}
+
+.hybridTracks > div {
+  position: relative;
+  min-height: 92px;
+  padding: 12px;
+  border: 1px solid #23433f;
+  background: rgba(7, 16, 20, .72);
+}
+
+.hybridTracks small { display: block; color: #718990; font: 9px monospace; }
+.hybridTracks b { display: block; margin-top: 5px; color: #dbe8e8; font: 15px monospace; }
+.hybridTracks em { position: absolute; top: 12px; right: 12px; color: #4ce0b9; font: 9px monospace; font-style: normal; }
+.hybridTracks p { margin: 9px 0 0; color: #71858c; font-size: 10px; line-height: 1.55; }
+.hybridRules { display: flex; gap: 12px; padding: 0 14px 12px; color: #81969d; font-size: 10px; }
+.hybridRules b { color: #d5a856; white-space: nowrap; }
+.hybridRules nav { display: flex; gap: 8px; flex-wrap: wrap; margin-left: auto; }
+.hybridRules a { color: #8ff5da; border: 1px solid #2d6b5c; background: #09251f; padding: 6px 9px; text-decoration: none; font: 700 10px monospace; letter-spacing: .03em; }
+.hybridRules a:hover { border-color: #51d9b3; background: #0d332b; }
+
+@media (max-width: 700px) {
+  .sources { grid-template-columns: 1fr; }
+  .domesticSources { grid-template-columns: 1fr; }
+  .hybridTracks { grid-template-columns: 1fr; }
+  .hybridRules { display: block; }
+  .hybridRules span { display: block; margin-top: 6px; }
+  .hybridRules nav { margin: 10px 0 0; }
+  .gatewayHead > span { display: none; }
+}
+
+@media (min-width: 701px) and (max-width: 1200px) {
+  .domesticSources { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+}

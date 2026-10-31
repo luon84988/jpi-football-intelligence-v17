@@ -1,0 +1,21 @@
+name: Observation intake and Worker contracts
+on:
+  pull_request:
+    paths: ['worker/**', 'app/**', 'db/**', 'drizzle/**', 'tests/**', 'package*.json', '.github/workflows/observation-contracts.yml']
+  push:
+    branches: [main]
+    paths: ['worker/**', 'app/**', 'db/**', 'drizzle/**', 'tests/**', 'package*.json', '.github/workflows/observation-contracts.yml']
+permissions:
+  contents: read
+jobs:
+  verify-worker:
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '24'
+      - run: node --test tests/domestic-observations.test.mjs tests/official-feed.test.mjs
+      - run: npm ci --ignore-scripts
+      - run: npm run build

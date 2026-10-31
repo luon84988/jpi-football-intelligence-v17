@@ -12,6 +12,8 @@ export async function saveLiveFootballCache(db: D1Database, payload: Record<stri
   await db.prepare(`INSERT INTO live_football_cache (cache_key,payload,updated_at) VALUES (?,?,?)
     ON CONFLICT(cache_key) DO UPDATE SET payload=excluded.payload, updated_at=excluded.updated_at`)
     .bind(CACHE_KEY, JSON.stringify(payload), updatedAt).run();
+  const saved = await db.prepare('SELECT payload,updated_at FROM live_football_cache WHERE cache_key=?').bind(CACHE_KEY).first<{payload:string;updated_at:string}>();
+  if(saved?.payload !== JSON.stringify(payload) || saved?.updated_at !== updatedAt) throw new Error('Official cache readback failed');
 }
 
 export async function readLiveFootballCache(db: D1Database) {

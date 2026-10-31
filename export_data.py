@@ -51,7 +51,7 @@ def api_request(endpoint: str) -> tuple[Request, bool]:
     if token:
         if (parsed.scheme != "https" or parsed.hostname != SITES_SERVICE_HOST
                 or parsed.port not in (None, 443) or parsed.username or parsed.password
-                or parsed.path != "/api/football/live" or parsed.query or parsed.fragment):
+                or parsed.path not in {"/api/football/live", "/api/football/observations"} or parsed.query or parsed.fragment):
             raise ExportError("SITES_SERVICE_TOKEN may only be sent to the configured JPi Sites HTTPS live endpoint.")
         headers["OAI-Sites-Authorization"] = f"Bearer {token}"
     else:
@@ -63,6 +63,32 @@ def api_request(endpoint: str) -> tuple[Request, bool]:
                 raise ExportError("API_KEY requires an HTTPS endpoint without URL credentials.")
             headers["Authorization"] = f"Bearer {api_key}"
     return Request(endpoint, headers=headers, method="GET"), bool(token or os.getenv("API_KEY", "").strip())
+
+
+def observation_source(payload: dict) -> bool:
+    return (os.getenv("JPI_ALLOW_THIRD_PARTY_OBSERVATIONS") == "1"
+            and payload.get("sourceKind") == "THIRD_PARTY_JINGCAI_OBSERVATIONS"
+            and payload.get("officialVerification") == "NOT_VERIFIED"
+            and payload.get("analysisStatus") == "PRE_ANALYSIS"
+            and payload.get("formalEligible") is False)
+
+
+def validate_source(payload: dict) -> None:
+    observed = observation_source(payload)
+    if not observed and payload.get("source") != "中国体育彩票官方竞彩":
+        raise ExportError("Only current official Sporttery data may be published; fallback or cached sources are rejected.")
+    health = payload.get("sourceHealth")
+    if not isinstance(health, dict) or health.get("succeeded") != (2 if observed else 1) or health.get("hasData") is not True:
+        raise ExportError("Official source health is not verified; refusing to publish.")
+    if observed:
+        proof = payload.get("persistence", {})
+        import re
+        if (health.get("officialVerified") is not False or proof.get("status") != "verified"
+                or not re.fullmatch(r"[a-f0-9]{64}", str(payload.get("snapshotHash", "")))
+                or proof.get("snapshotHash") != payload.get("snapshotHash")):
+            raise ExportError("Third-party observation persistence proof is missing")
+        if not payload.get("matches") or any(not str(m.get("sourceEventId", "")).startswith("observed:") or m.get("formalEligible") is not False for m in payload["matches"]):
+            raise ExportError("Third-party match identity or analysis boundary is invalid")
 
 
 def fetch_live_data(endpoint: str) -> dict:
@@ -86,12 +112,9 @@ def fetch_live_data(endpoint: str) -> dict:
     if not isinstance(payload, dict):
         raise ExportError("Live API payload must be a JSON object.")
     if payload.get("error") or payload.get("stale") is True:
-        raise ExportError(f"Live API is unavailable or stale: {payload.get('error', 'stale=true')}")
-    if payload.get("source") != "中国体育彩票官方竞彩":
-        raise ExportError("Only current official Sporttery data may be published; fallback or cached sources are rejected.")
-    health = payload.get("sourceHealth")
-    if not isinstance(health, dict) or health.get("succeeded") != 1 or health.get("hasData") is not True:
-        raise ExportError("Official source health is not verified; refusing to publish.")
+        attempt = payload.get("sourceAttempt") or {}
+        raise ExportError(f"Live API is unavailable or stale: {payload.get('error', 'stale=true')}; upstream_status={attempt.get('status')}; upstream_outcome={attempt.get('outcome')}")
+    validate_source(payload)
     matches = payload.get("matches")
     if not isinstance(matches, list) or not matches:
         raise ExportError("Live API returned no matches; refusing to replace the existing snapshot.")
@@ -101,7 +124,7 @@ def fetch_live_data(endpoint: str) -> dict:
     try:
         timestamp = datetime.fromisoformat(updated_at.replace("Z", "+00:00"))
         if timestamp.tzinfo is None:
-            timestamp = timestamp.replace(tzinfo=timezone.utc)
+            raise ExportError("Live API updatedAt must include a timezone.")
     except ValueError as exc:
         raise ExportError("Live API updatedAt is not a valid ISO-8601 timestamp.") from exc
     age = (datetime.now(timezone.utc) - timestamp.astimezone(timezone.utc)).total_seconds()
@@ -129,11 +152,7 @@ def odds_probabilities(raw_odds: object) -> tuple[float, float, float] | None:
 
 
 def build_dashboard_payload(payload: dict) -> dict:
-    if payload.get("source") != "中国体育彩票官方竞彩":
-        raise ExportError("Non-official or fallback data cannot be exported.")
-    health = payload.get("sourceHealth")
-    if not isinstance(health, dict) or health.get("succeeded") != 1 or health.get("hasData") is not True:
-        raise ExportError("Official source health is not verified.")
+    validate_source(payload)
     rows = []
     skipped = 0
     for match in payload["matches"]:
@@ -170,10 +189,16 @@ def build_dashboard_payload(payload: dict) -> dict:
         "source_updated_at": payload["updatedAt"],
         "source": payload.get("source", "JPi live football API"),
         "stale": False,
+        "analysis_status": "PRE_ANALYSIS",
+        "source_kind": "THIRD_PARTY_JINGCAI_OBSERVATIONS" if observation_source(payload) else "OFFICIAL_MARKET_OBSERVATION",
+        "official_verified": not observation_source(payload),
+        "snapshot_hash": payload.get("snapshotHash"),
+        "formal_eligible": False,
         "summary": {
             "total_matches": len(rows),
             "ev_positive_count": 0,
             "model_version": "V17.0",
+            "analysis_status": "PRE_ANALYSIS",
             "probability_basis": "de-vigged_market_odds; not independent model probabilities",
             "skipped_invalid_matches": skipped,
         },
@@ -205,4 +230,5 @@ def main() -> int:
 
 if __name__ == "__main__":
     raise SystemExit(main())
+
 

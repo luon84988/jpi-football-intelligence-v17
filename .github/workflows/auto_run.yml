@@ -4,12 +4,31 @@ on:
   pull_request:
     paths:
       - 'export_data.py'
+      - 'scripts/domestic.py'
+      - 'scripts/upload_observations.py'
+      - 'tests/**'
       - '.github/workflows/production_health.yml'
       - 'tests/test_export_data.py'
       - '.github/workflows/auto_run.yml'
+  push:
+    branches: [main]
+    paths:
+      - 'export_data.py'
+      - 'scripts/domestic.py'
+      - 'scripts/upload_observations.py'
+      - '.github/workflows/auto_run.yml'
   workflow_dispatch:
   schedule:
+    - cron: '7,27,47 * * * *'
+    - cron: '20 13 * * *'
     - cron: '30 13 * * *'
+
+concurrency:
+  group: jpi-observation-publication
+  cancel-in-progress: false
+
+env:
+  JPI_ALLOW_THIRD_PARTY_OBSERVATIONS: '1'
 
 permissions:
   contents: read
@@ -17,6 +36,8 @@ permissions:
 jobs:
   test-export:
     runs-on: ubuntu-latest
+    env:
+      JPI_ALLOW_THIRD_PARTY_OBSERVATIONS: '0'
     steps:
       - name: Checkout repository
         uses: actions/checkout@v4
@@ -27,7 +48,7 @@ jobs:
           python-version: '3.12'
 
       - name: Test export validation and fail-closed behavior
-        run: python -m unittest discover -s tests -p 'test_export_data.py' -v
+        run: python -m unittest discover -s tests -p 'test_*.py' -v
 
   run-script:
     if: github.ref == 'refs/heads/main' && github.event_name != 'pull_request'
@@ -53,6 +74,15 @@ jobs:
             exit 1
           fi
 
+      - name: Collect current 500 and OKOOO evidence
+        run: python scripts/domestic.py
+
+      - name: Persist observations and raw evidence to private Site D1
+        env:
+          JPI_API_URL: ${{ vars.JPI_API_URL }}
+          SITES_SERVICE_TOKEN: ${{ secrets.SITES_SERVICE_TOKEN }}
+        run: python scripts/upload_observations.py
+
       - name: Check Worker API availability
         env:
           JPI_API_URL: ${{ vars.JPI_API_URL }}
@@ -65,7 +95,7 @@ jobs:
           from export_data import source_endpoint, fetch_live_data
           endpoint = source_endpoint(os.environ['JPI_API_URL'])
           payload = fetch_live_data(endpoint)
-          print('Verified fresh official Worker source; matches:', len(payload['matches']))
+          print('Verified current source (official or explicit PRE_ANALYSIS observations); matches:', len(payload['matches']))
           PY
 
       - name: Export and validate live data
@@ -87,4 +117,5 @@ jobs:
           fi
           git commit -m "Auto-update dashboard data from live API [skip ci]"
           git push origin HEAD:main
+
 
