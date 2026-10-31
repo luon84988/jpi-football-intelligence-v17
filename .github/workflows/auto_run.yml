@@ -19,7 +19,7 @@ on:
       - '.github/workflows/auto_run.yml'
   workflow_dispatch:
   schedule:
-    - cron: '17 */2 * * *'
+    - cron: '7,27,47 * * * *'
     - cron: '20 13 * * *'
     - cron: '30 13 * * *'
 
