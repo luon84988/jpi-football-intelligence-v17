@@ -1,5 +1,11 @@
 name: JPi Production Health Monitor
 on:
+  push:
+    branches: [main]
+    paths:
+      - '.github/workflows/production_health.yml'
+      - 'scripts/monitor_production.py'
+      - 'export_data.py'
   workflow_dispatch:
   schedule:
     - cron: '17 * * * *'
