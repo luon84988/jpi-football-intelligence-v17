@@ -1,12 +1,12 @@
 {
-  "update_time": "2026-11-02T22:24:01+00:00",
-  "source_updated_at": "2026-11-02T22:23:56.369471+00:00",
+  "update_time": "2026-11-03T02:31:59+00:00",
+  "source_updated_at": "2026-11-03T02:31:51.428293+00:00",
   "source": "500彩票网＋澳客交叉观察",
   "stale": false,
   "analysis_status": "PRE_ANALYSIS",
   "source_kind": "THIRD_PARTY_JINGCAI_OBSERVATIONS",
   "official_verified": false,
-  "snapshot_hash": "bd4bf47750febb91f34329c65b66226df93ec68bfe47bfa966b104344f233f95",
+  "snapshot_hash": "a7e023e0e54d2648e7da1bbca8c5a66ec1d6b66ccae74eec2d5df7d82cff75e5",
   "formal_eligible": false,
   "summary": {
     "total_matches": 8,
@@ -22,9 +22,9 @@
       "league": "欧冠",
       "home": "加拉塔萨",
       "away": "斯图加特",
-      "prob_home": 0.41033,
-      "prob_draw": 0.234162,
-      "prob_away": 0.355508,
+      "prob_home": 0.41802,
+      "prob_draw": 0.228011,
+      "prob_away": 0.353969,
       "probability_basis": "de-vigged_market_odds",
       "ev_value": null,
       "recommendation": "观察：未提供独立且已校准的模型概率",
@@ -33,9 +33,9 @@
       "kickoff_display": "11/04 01:45",
       "risk": "待验证",
       "odds": [
-        "2.14",
-        "3.75",
-        "2.47"
+        "2.10",
+        "3.85",
+        "2.48"
       ],
       "data_quality": "C"
     },
@@ -44,9 +44,9 @@
       "league": "欧冠",
       "home": "马竞",
       "away": "拜仁",
-      "prob_home": 0.354138,
-      "prob_draw": 0.237368,
-      "prob_away": 0.408494,
+      "prob_home": 0.35387,
+      "prob_draw": 0.232169,
+      "prob_away": 0.413961,
       "probability_basis": "de-vigged_market_odds",
       "ev_value": null,
       "recommendation": "观察：未提供独立且已校准的模型概率",
@@ -56,8 +56,8 @@
       "risk": "待验证",
       "odds": [
         "2.48",
-        "3.70",
-        "2.15"
+        "3.78",
+        "2.12"
       ],
       "data_quality": "C"
     },
@@ -110,9 +110,9 @@
       "league": "欧冠",
       "home": "曼联",
       "away": "罗马",
-      "prob_home": 0.418218,
-      "prob_draw": 0.237367,
-      "prob_away": 0.344415,
+      "prob_home": 0.402798,
+      "prob_draw": 0.237324,
+      "prob_away": 0.359877,
       "probability_basis": "de-vigged_market_odds",
       "ev_value": null,
       "recommendation": "观察：未提供独立且已校准的模型概率",
@@ -121,9 +121,9 @@
       "kickoff_display": "11/04 04:00",
       "risk": "待验证",
       "odds": [
-        "2.10",
+        "2.18",
         "3.70",
-        "2.55"
+        "2.44"
       ],
       "data_quality": "C"
     },
