@@ -1,12 +1,12 @@
 {
-  "update_time": "2026-11-03T23:15:06+00:00",
-  "source_updated_at": "2026-11-03T23:14:59.666092+00:00",
+  "update_time": "2026-11-04T03:06:45+00:00",
+  "source_updated_at": "2026-11-04T03:06:37.186582+00:00",
   "source": "500彩票网＋澳客交叉观察",
   "stale": false,
   "analysis_status": "PRE_ANALYSIS",
   "source_kind": "THIRD_PARTY_JINGCAI_OBSERVATIONS",
   "official_verified": false,
-  "snapshot_hash": "bdd81c7f89d1c63d377f7c520d4c6ce3f90d4d5a8f52ced876216d3b0b97a299",
+  "snapshot_hash": "c451bec2b7c2c86ba34410a492d1a7552858afca8b14d65ee1620c72d18b715b",
   "formal_eligible": false,
   "summary": {
     "total_matches": 10,
@@ -66,9 +66,9 @@
       "league": "欧冠",
       "home": "费内巴切",
       "away": "利物浦",
-      "prob_home": 0.164096,
-      "prob_draw": 0.195092,
-      "prob_away": 0.640812,
+      "prob_home": 0.152748,
+      "prob_draw": 0.186873,
+      "prob_away": 0.660379,
       "probability_basis": "de-vigged_market_odds",
       "ev_value": null,
       "recommendation": "观察：未提供独立且已校准的模型概率",
@@ -77,9 +77,9 @@
       "kickoff_display": "11/05 01:45",
       "risk": "待验证",
       "odds": [
-        "5.35",
-        "4.50",
-        "1.37"
+        "5.75",
+        "4.70",
+        "1.33"
       ],
       "data_quality": "C"
     },
@@ -88,9 +88,9 @@
       "league": "欧冠",
       "home": "莱红牛",
       "away": "曼城",
-      "prob_home": 0.172043,
-      "prob_draw": 0.182796,
-      "prob_away": 0.645161,
+      "prob_home": 0.16715,
+      "prob_draw": 0.182821,
+      "prob_away": 0.650029,
       "probability_basis": "de-vigged_market_odds",
       "ev_value": null,
       "recommendation": "观察：未提供独立且已校准的模型概率",
@@ -99,9 +99,9 @@
       "kickoff_display": "11/05 04:00",
       "risk": "待验证",
       "odds": [
-        "5.10",
+        "5.25",
         "4.80",
-        "1.36"
+        "1.35"
       ],
       "data_quality": "C"
     },
@@ -176,9 +176,9 @@
       "league": "欧冠",
       "home": "维京",
       "away": "萨巴赫",
-      "prob_home": 0.696304,
-      "prob_draw": 0.16872,
-      "prob_away": 0.134976,
+      "prob_home": 0.701921,
+      "prob_draw": 0.167124,
+      "prob_away": 0.130955,
       "probability_basis": "de-vigged_market_odds",
       "ev_value": null,
       "recommendation": "观察：未提供独立且已校准的模型概率",
@@ -187,9 +187,9 @@
       "kickoff_display": "11/05 04:00",
       "risk": "待验证",
       "odds": [
-        "1.26",
-        "5.20",
-        "6.50"
+        "1.25",
+        "5.25",
+        "6.70"
       ],
       "data_quality": "C"
     },
@@ -220,9 +220,9 @@
       "league": "欧冠",
       "home": "斯拉维亚",
       "away": "阿森纳",
-      "prob_home": 0.08162,
-      "prob_draw": 0.148715,
-      "prob_away": 0.769665,
+      "prob_home": 0.079759,
+      "prob_draw": 0.143827,
+      "prob_away": 0.776414,
       "probability_basis": "de-vigged_market_odds",
       "ev_value": null,
       "recommendation": "观察：未提供独立且已校准的模型概率",
@@ -231,9 +231,9 @@
       "kickoff_display": "11/05 04:00",
       "risk": "待验证",
       "odds": [
-        "10.75",
-        "5.90",
-        "1.14"
+        "11.00",
+        "6.10",
+        "1.13"
       ],
       "data_quality": "C"
     }
