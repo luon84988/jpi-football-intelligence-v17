@@ -1,15 +1,15 @@
 {
-  "update_time": "2026-11-06T01:50:50+00:00",
-  "source_updated_at": "2026-11-06T01:50:42.014311+00:00",
+  "update_time": "2026-11-06T09:17:59+00:00",
+  "source_updated_at": "2026-11-06T09:17:50.579056+00:00",
   "source": "500彩票网＋澳客交叉观察",
   "stale": false,
   "analysis_status": "PRE_ANALYSIS",
   "source_kind": "THIRD_PARTY_JINGCAI_OBSERVATIONS",
   "official_verified": false,
-  "snapshot_hash": "1b83a3b5a602b6c3711d22a0c719ff3f214cfff73bf58e624e1f7afbc6ba2e82",
+  "snapshot_hash": "1c34199affb226b9d64fe81759255d282cf3b46627b757fab0af2ca01bff0eda",
   "formal_eligible": false,
   "summary": {
-    "total_matches": 14,
+    "total_matches": 13,
     "ev_positive_count": 0,
     "model_version": "V17.0",
     "analysis_status": "PRE_ANALYSIS",
@@ -18,35 +18,13 @@
   },
   "matches": [
     {
-      "match_id": "observed:2026-11-06:周五001",
-      "league": "澳超",
-      "home": "悉尼FC",
-      "away": "中央海岸",
-      "prob_home": 0.640774,
-      "prob_draw": 0.206555,
-      "prob_away": 0.152671,
-      "probability_basis": "de-vigged_market_odds",
-      "ev_value": null,
-      "recommendation": "观察：未提供独立且已校准的模型概率",
-      "match_time": "11/06 16:40",
-      "kickoff": null,
-      "kickoff_display": "11/06 16:40",
-      "risk": "待验证",
-      "odds": [
-        "1.37",
-        "4.25",
-        "5.75"
-      ],
-      "data_quality": "C"
-    },
-    {
       "match_id": "observed:2026-11-06:周五002",
       "league": "德乙",
       "home": "不伦瑞克",
       "away": "科特布斯",
-      "prob_home": 0.49588,
-      "prob_draw": 0.234056,
-      "prob_away": 0.270064,
+      "prob_home": 0.516132,
+      "prob_draw": 0.227312,
+      "prob_away": 0.256557,
       "probability_basis": "de-vigged_market_odds",
       "ev_value": null,
       "recommendation": "观察：未提供独立且已校准的模型概率",
@@ -55,9 +33,9 @@
       "kickoff_display": "11/07 01:30",
       "risk": "待验证",
       "odds": [
-        "1.77",
-        "3.75",
-        "3.25"
+        "1.70",
+        "3.86",
+        "3.42"
       ],
       "data_quality": "C"
     },
@@ -66,9 +44,9 @@
       "league": "瑞超",
       "home": "哈马比",
       "away": "埃夫斯堡",
-      "prob_home": 0.685943,
-      "prob_draw": 0.18681,
-      "prob_away": 0.127247,
+      "prob_home": 0.731212,
+      "prob_draw": 0.165558,
+      "prob_away": 0.10323,
       "probability_basis": "de-vigged_market_odds",
       "ev_value": null,
       "recommendation": "观察：未提供独立且已校准的模型概率",
@@ -77,9 +55,9 @@
       "kickoff_display": "11/07 02:00",
       "risk": "待验证",
       "odds": [
-        "1.28",
-        "4.70",
-        "6.90"
+        "1.20",
+        "5.30",
+        "8.50"
       ],
       "data_quality": "C"
     },
@@ -88,9 +66,9 @@
       "league": "法乙",
       "home": "蒙彼利埃",
       "away": "梅斯",
-      "prob_home": 0.475177,
-      "prob_draw": 0.262411,
-      "prob_away": 0.262411,
+      "prob_home": 0.548644,
+      "prob_draw": 0.237251,
+      "prob_away": 0.214105,
       "probability_basis": "de-vigged_market_odds",
       "ev_value": null,
       "recommendation": "观察：未提供独立且已校准的模型概率",
@@ -99,9 +77,9 @@
       "kickoff_display": "11/07 03:00",
       "risk": "待验证",
       "odds": [
-        "1.85",
-        "3.35",
-        "3.35"
+        "1.60",
+        "3.70",
+        "4.10"
       ],
       "data_quality": "C"
     },
@@ -110,9 +88,9 @@
       "league": "荷甲",
       "home": "威廉二世",
       "away": "兹沃勒",
-      "prob_home": 0.34441,
-      "prob_draw": 0.254564,
-      "prob_away": 0.401026,
+      "prob_home": 0.297573,
+      "prob_draw": 0.252253,
+      "prob_away": 0.450174,
       "probability_basis": "de-vigged_market_odds",
       "ev_value": null,
       "recommendation": "观察：未提供独立且已校准的模型概率",
@@ -121,9 +99,9 @@
       "kickoff_display": "11/07 03:00",
       "risk": "待验证",
       "odds": [
-        "2.55",
-        "3.45",
-        "2.19"
+        "2.95",
+        "3.48",
+        "1.95"
       ],
       "data_quality": "C"
     },
@@ -154,9 +132,9 @@
       "league": "德甲",
       "home": "汉堡",
       "away": "门兴",
-      "prob_home": 0.376737,
-      "prob_draw": 0.262029,
-      "prob_away": 0.361234,
+      "prob_home": 0.40463,
+      "prob_draw": 0.270168,
+      "prob_away": 0.325202,
       "probability_basis": "de-vigged_market_odds",
       "ev_value": null,
       "recommendation": "观察：未提供独立且已校准的模型概率",
@@ -165,9 +143,9 @@
       "kickoff_display": "11/07 03:30",
       "risk": "待验证",
       "odds": [
-        "2.33",
-        "3.35",
-        "2.43"
+        "2.17",
+        "3.25",
+        "2.70"
       ],
       "data_quality": "C"
     },
@@ -176,9 +154,9 @@
       "league": "意甲",
       "home": "威尼斯",
       "away": "乌迪内斯",
-      "prob_home": 0.406419,
-      "prob_draw": 0.26602,
-      "prob_away": 0.327561,
+      "prob_home": 0.398985,
+      "prob_draw": 0.26599,
+      "prob_away": 0.335025,
       "probability_basis": "de-vigged_market_odds",
       "ev_value": null,
       "recommendation": "观察：未提供独立且已校准的模型概率",
@@ -187,9 +165,9 @@
       "kickoff_display": "11/07 03:45",
       "risk": "待验证",
       "odds": [
-        "2.16",
+        "2.20",
         "3.30",
-        "2.68"
+        "2.62"
       ],
       "data_quality": "C"
     },
@@ -198,9 +176,9 @@
       "league": "法甲",
       "home": "图卢兹",
       "away": "斯特拉斯",
-      "prob_home": 0.477273,
-      "prob_draw": 0.243939,
-      "prob_away": 0.278788,
+      "prob_home": 0.450104,
+      "prob_draw": 0.24724,
+      "prob_away": 0.302656,
       "probability_basis": "de-vigged_market_odds",
       "ev_value": null,
       "recommendation": "观察：未提供独立且已校准的模型概率",
@@ -209,9 +187,9 @@
       "kickoff_display": "11/07 03:45",
       "risk": "待验证",
       "odds": [
-        "1.84",
-        "3.60",
-        "3.15"
+        "1.95",
+        "3.55",
+        "2.90"
       ],
       "data_quality": "C"
     },
@@ -220,9 +198,9 @@
       "league": "英超",
       "home": "埃弗顿",
       "away": "考文垂",
-      "prob_home": 0.581206,
-      "prob_draw": 0.234032,
-      "prob_away": 0.184762,
+      "prob_home": 0.613833,
+      "prob_draw": 0.220548,
+      "prob_away": 0.165619,
       "probability_basis": "de-vigged_market_odds",
       "ev_value": null,
       "recommendation": "观察：未提供独立且已校准的模型概率",
@@ -231,9 +209,9 @@
       "kickoff_display": "11/07 04:00",
       "risk": "待验证",
       "odds": [
-        "1.51",
-        "3.75",
-        "4.75"
+        "1.43",
+        "3.98",
+        "5.30"
       ],
       "data_quality": "C"
     },
@@ -242,9 +220,9 @@
       "league": "英冠",
       "home": "德比郡",
       "away": "博尔顿",
-      "prob_home": 0.395151,
-      "prob_draw": 0.26745,
-      "prob_away": 0.337399,
+      "prob_home": 0.348306,
+      "prob_draw": 0.270071,
+      "prob_away": 0.381622,
       "probability_basis": "de-vigged_market_odds",
       "ev_value": null,
       "recommendation": "观察：未提供独立且已校准的模型概率",
@@ -253,9 +231,9 @@
       "kickoff_display": "11/07 04:00",
       "risk": "待验证",
       "odds": [
-        "2.22",
-        "3.28",
-        "2.60"
+        "2.52",
+        "3.25",
+        "2.30"
       ],
       "data_quality": "C"
     },
@@ -264,9 +242,9 @@
       "league": "西甲",
       "home": "塞维利亚",
       "away": "阿拉维斯",
-      "prob_home": 0.487658,
-      "prob_draw": 0.283156,
-      "prob_away": 0.229186,
+      "prob_home": 0.522571,
+      "prob_draw": 0.2832,
+      "prob_away": 0.19423,
       "probability_basis": "de-vigged_market_odds",
       "ev_value": null,
       "recommendation": "观察：未提供独立且已校准的模型概率",
@@ -275,9 +253,9 @@
       "kickoff_display": "11/07 04:00",
       "risk": "待验证",
       "odds": [
-        "1.80",
+        "1.68",
         "3.10",
-        "3.83"
+        "4.52"
       ],
       "data_quality": "C"
     },
@@ -286,9 +264,9 @@
       "league": "葡超",
       "home": "法马利康",
       "away": "阿罗卡",
-      "prob_home": 0.439378,
-      "prob_draw": 0.27897,
-      "prob_away": 0.281652,
+      "prob_home": 0.414365,
+      "prob_draw": 0.292818,
+      "prob_away": 0.292818,
       "probability_basis": "de-vigged_market_odds",
       "ev_value": null,
       "recommendation": "观察：未提供独立且已校准的模型概率",
@@ -297,9 +275,9 @@
       "kickoff_display": "11/07 04:45",
       "risk": "待验证",
       "odds": [
-        "2.00",
-        "3.15",
-        "3.12"
+        "2.12",
+        "3.00",
+        "3.00"
       ],
       "data_quality": "C"
     },
@@ -308,9 +286,9 @@
       "league": "巴甲",
       "home": "维多利亚",
       "away": "弗鲁米嫩",
-      "prob_home": 0.326446,
-      "prob_draw": 0.283271,
-      "prob_away": 0.390284,
+      "prob_home": 0.317013,
+      "prob_draw": 0.292709,
+      "prob_away": 0.390278,
       "probability_basis": "de-vigged_market_odds",
       "ev_value": null,
       "recommendation": "观察：未提供独立且已校准的模型概率",
@@ -319,8 +297,8 @@
       "kickoff_display": "11/07 07:00",
       "risk": "待验证",
       "odds": [
-        "2.69",
-        "3.10",
+        "2.77",
+        "3.00",
         "2.25"
       ],
       "data_quality": "C"
