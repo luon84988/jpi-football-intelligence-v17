@@ -67,14 +67,47 @@ export async function appendOfficialOddsHistory(db: D1Database | undefined, payl
     snapshot_json TEXT NOT NULL,
     event_count INTEGER NOT NULL
   )`).run();
-  // No UPDATE/DELETE: first observation of a content hash is retained.
-  await db.prepare(`INSERT OR IGNORE INTO official_odds_snapshot_history
-    (snapshot_hash, first_seen_at, source, quote_time_verified, snapshot_json, event_count)
-    VALUES (?, ?, ?, 0, ?, ?)`)
-    .bind(snapshotHash, observedAt, OFFICIAL_SOURCE, serialized, matchCount).run();
-  const persisted = await db.prepare(`SELECT snapshot_json, event_count FROM official_odds_snapshot_history WHERE snapshot_hash=?`)
-    .bind(snapshotHash).first<{ snapshot_json: string; event_count: number }>();
-  if (!persisted || persisted.snapshot_json !== serialized || persisted.event_count !== matchCount) {
+  // The hash table stores unique market bodies; the transition log records
+  // every CHANGE of the current head, including A -> B -> A. Both are append-only.
+  await db.prepare(`CREATE TABLE IF NOT EXISTS official_odds_transition_history (
+    transition_id INTEGER PRIMARY KEY AUTOINCREMENT,
+    snapshot_hash TEXT NOT NULL,
+    previous_hash TEXT,
+    observed_at TEXT NOT NULL
+  )`).run();
+  await db.prepare(`CREATE TABLE IF NOT EXISTS official_odds_transition_head (
+    head_key TEXT PRIMARY KEY,
+    snapshot_hash TEXT NOT NULL
+  )`).run();
+
+  // D1 batch executes sequential statements in one transaction. The transition
+  // decision happens inside SQL, not via a racy read/compare in Worker code.
+  const results = await db.batch([
+    db.prepare(`INSERT OR IGNORE INTO official_odds_snapshot_history
+      (snapshot_hash, first_seen_at, source, quote_time_verified, snapshot_json, event_count)
+      VALUES (?, ?, ?, 0, ?, ?)`)
+      .bind(snapshotHash, observedAt, OFFICIAL_SOURCE, serialized, matchCount),
+    db.prepare(`INSERT INTO official_odds_transition_history (snapshot_hash, previous_hash, observed_at)
+      SELECT ?, h.snapshot_hash, ?
+      FROM (SELECT 1) AS seed
+      LEFT JOIN official_odds_transition_head h ON h.head_key='sporttery_current'
+      WHERE h.snapshot_hash IS NULL OR h.snapshot_hash != ?`)
+      .bind(snapshotHash, observedAt, snapshotHash),
+    db.prepare(`INSERT INTO official_odds_transition_head (head_key, snapshot_hash)
+      VALUES ('sporttery_current', ?)
+      ON CONFLICT(head_key) DO UPDATE SET snapshot_hash=excluded.snapshot_hash
+      WHERE official_odds_transition_head.snapshot_hash != excluded.snapshot_hash`)
+      .bind(snapshotHash),
+    db.prepare(`SELECT snapshot_json, event_count FROM official_odds_snapshot_history WHERE snapshot_hash=?`)
+      .bind(snapshotHash),
+    db.prepare(`SELECT snapshot_hash FROM official_odds_transition_head WHERE head_key='sporttery_current'`),
+    db.prepare(`SELECT snapshot_hash FROM official_odds_transition_history ORDER BY transition_id DESC LIMIT 1`),
+  ]);
+  const persisted = results[3]?.results?.[0] as { snapshot_json: string; event_count: number } | undefined;
+  const head = results[4]?.results?.[0] as { snapshot_hash: string } | undefined;
+  const latestTransition = results[5]?.results?.[0] as { snapshot_hash: string } | undefined;
+  if (!persisted || persisted.snapshot_json !== serialized || persisted.event_count !== matchCount ||
+      head?.snapshot_hash !== snapshotHash || latestTransition?.snapshot_hash !== snapshotHash) {
     throw new Error("OFFICIAL_HISTORY_WRITE_NOT_VERIFIED");
   }
   return { snapshotHash, observedAt, matchCount, quoteTimeVerified: false };
