@@ -5,6 +5,7 @@ on:
       - 'worker/official-odds-history.ts'
       - 'worker/index.ts'
       - 'tests/official-odds-history.test.mjs'
+      - 'tests/official_odds_history_sqlite_test.py'
       - '.github/workflows/official-odds-history.yml'
   workflow_dispatch:
 permissions:
@@ -23,5 +24,7 @@ jobs:
         run: npm ci
       - name: Test history and live D1 readback
         run: node --experimental-strip-types --test tests/official-odds-history.test.mjs tests/live-football-cache.test.mjs
+      - name: Verify transition SQL on SQLite
+        run: python3 tests/official_odds_history_sqlite_test.py -v
       - name: Build full Worker
         run: npm run build

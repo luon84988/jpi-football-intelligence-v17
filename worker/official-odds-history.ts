@@ -5,6 +5,20 @@
 const OFFICIAL_SOURCE = "中国体育彩票官方竞彩";
 const MAX_SNAPSHOT_BYTES = 500_000;
 
+/** Normalize official sales-day identity without accepting invalid calendar dates. */
+function normalizeSalesDate(raw: unknown): string {
+  if (typeof raw !== "string" && typeof raw !== "number") throw new Error("OFFICIAL_HISTORY_SALES_DATE_INVALID");
+  const value = String(raw).trim();
+  const parts = /^(\d{4})([-/]?)(\d{2})\2(\d{2})$/.exec(value);
+  if (!parts) throw new Error("OFFICIAL_HISTORY_SALES_DATE_INVALID");
+  const year = Number(parts[1]), month = Number(parts[3]), day = Number(parts[4]);
+  const date = new Date(Date.UTC(year, month - 1, day));
+  if (date.getUTCFullYear() !== year || date.getUTCMonth() + 1 !== month || date.getUTCDate() !== day) {
+    throw new Error("OFFICIAL_HISTORY_SALES_DATE_INVALID");
+  }
+  return `${parts[1]}-${parts[3]}-${parts[4]}`;
+}
+
 function normalizeOfficialOdds(payload: Record<string, unknown>) {
   if (payload.source !== OFFICIAL_SOURCE || payload.stale === true) throw new Error("OFFICIAL_HISTORY_SOURCE_NOT_VERIFIED");
   const health = payload.sourceHealth as Record<string, unknown> | undefined;
@@ -18,8 +32,11 @@ function normalizeOfficialOdds(payload: Record<string, unknown>) {
   const matches = payload.matches.map((raw) => {
     if (!raw || typeof raw !== "object" || Array.isArray(raw)) throw new Error("OFFICIAL_HISTORY_MATCH_INVALID");
     const match = raw as Record<string, unknown>;
-    const id = String(match.sourceEventId ?? "").trim();
-    if (!id || id === "undefined" || id === "null" || ids.has(id)) throw new Error("OFFICIAL_HISTORY_EVENT_ID_INVALID");
+    const rawId = match.sourceEventId;
+    if (typeof rawId !== "string" && typeof rawId !== "number") throw new Error("OFFICIAL_HISTORY_EVENT_ID_INVALID");
+    const id = String(rawId).trim();
+    if (!id || /^(?:undefined|null|none|nan|unknown|-)$/i.test(id) || ids.has(id)) throw new Error("OFFICIAL_HISTORY_EVENT_ID_INVALID");
+    const salesDate = normalizeSalesDate(match.salesDate);
     ids.add(id);
     const odds = match.odds;
     if (!Array.isArray(odds) || odds.length !== 3) throw new Error("OFFICIAL_HISTORY_ODDS_INVALID");
@@ -28,7 +45,7 @@ function normalizeOfficialOdds(payload: Record<string, unknown>) {
     for (const key of ["league", "home", "away"]) {
       if (typeof match[key] !== "string" || !(match[key] as string).trim()) throw new Error("OFFICIAL_HISTORY_TEAM_INVALID");
     }
-    return { eventId: id, salesDate: String(match.salesDate ?? ""), league: match.league,
+    return { eventId: id, salesDate, league: match.league,
       home: match.home, away: match.away, odds: normalizedOdds };
   });
   matches.sort((a, b) => a.eventId.localeCompare(b.eventId));
@@ -50,14 +67,47 @@ export async function appendOfficialOddsHistory(db: D1Database | undefined, payl
     snapshot_json TEXT NOT NULL,
     event_count INTEGER NOT NULL
   )`).run();
-  // No UPDATE/DELETE: first observation of a content hash is retained.
-  await db.prepare(`INSERT OR IGNORE INTO official_odds_snapshot_history
-    (snapshot_hash, first_seen_at, source, quote_time_verified, snapshot_json, event_count)
-    VALUES (?, ?, ?, 0, ?, ?)`)
-    .bind(snapshotHash, observedAt, OFFICIAL_SOURCE, serialized, matchCount).run();
-  const persisted = await db.prepare(`SELECT snapshot_json, event_count FROM official_odds_snapshot_history WHERE snapshot_hash=?`)
-    .bind(snapshotHash).first<{ snapshot_json: string; event_count: number }>();
-  if (!persisted || persisted.snapshot_json !== serialized || persisted.event_count !== matchCount) {
+  // The hash table stores unique market bodies; the transition log records
+  // every CHANGE of the current head, including A -> B -> A. Both are append-only.
+  await db.prepare(`CREATE TABLE IF NOT EXISTS official_odds_transition_history (
+    transition_id INTEGER PRIMARY KEY AUTOINCREMENT,
+    snapshot_hash TEXT NOT NULL,
+    previous_hash TEXT,
+    observed_at TEXT NOT NULL
+  )`).run();
+  await db.prepare(`CREATE TABLE IF NOT EXISTS official_odds_transition_head (
+    head_key TEXT PRIMARY KEY,
+    snapshot_hash TEXT NOT NULL
+  )`).run();
+
+  // D1 batch executes sequential statements in one transaction. The transition
+  // decision happens inside SQL, not via a racy read/compare in Worker code.
+  const results = await db.batch([
+    db.prepare(`INSERT OR IGNORE INTO official_odds_snapshot_history
+      (snapshot_hash, first_seen_at, source, quote_time_verified, snapshot_json, event_count)
+      VALUES (?, ?, ?, 0, ?, ?)`)
+      .bind(snapshotHash, observedAt, OFFICIAL_SOURCE, serialized, matchCount),
+    db.prepare(`INSERT INTO official_odds_transition_history (snapshot_hash, previous_hash, observed_at)
+      SELECT ?, h.snapshot_hash, ?
+      FROM (SELECT 1) AS seed
+      LEFT JOIN official_odds_transition_head h ON h.head_key='sporttery_current'
+      WHERE h.snapshot_hash IS NULL OR h.snapshot_hash != ?`)
+      .bind(snapshotHash, observedAt, snapshotHash),
+    db.prepare(`INSERT INTO official_odds_transition_head (head_key, snapshot_hash)
+      VALUES ('sporttery_current', ?)
+      ON CONFLICT(head_key) DO UPDATE SET snapshot_hash=excluded.snapshot_hash
+      WHERE official_odds_transition_head.snapshot_hash != excluded.snapshot_hash`)
+      .bind(snapshotHash),
+    db.prepare(`SELECT snapshot_json, event_count FROM official_odds_snapshot_history WHERE snapshot_hash=?`)
+      .bind(snapshotHash),
+    db.prepare(`SELECT snapshot_hash FROM official_odds_transition_head WHERE head_key='sporttery_current'`),
+    db.prepare(`SELECT snapshot_hash FROM official_odds_transition_history ORDER BY transition_id DESC LIMIT 1`),
+  ]);
+  const persisted = results[3]?.results?.[0] as { snapshot_json: string; event_count: number } | undefined;
+  const head = results[4]?.results?.[0] as { snapshot_hash: string } | undefined;
+  const latestTransition = results[5]?.results?.[0] as { snapshot_hash: string } | undefined;
+  if (!persisted || persisted.snapshot_json !== serialized || persisted.event_count !== matchCount ||
+      head?.snapshot_hash !== snapshotHash || latestTransition?.snapshot_hash !== snapshotHash) {
     throw new Error("OFFICIAL_HISTORY_WRITE_NOT_VERIFIED");
   }
   return { snapshotHash, observedAt, matchCount, quoteTimeVerified: false };
