@@ -1,15 +1,15 @@
 {
-  "update_time": "2026-11-11T23:36:07+00:00",
-  "source_updated_at": "2026-11-11T23:35:59.728425+00:00",
+  "update_time": "2026-11-12T04:22:23+00:00",
+  "source_updated_at": "2026-11-12T04:22:14.723182+00:00",
   "source": "500彩票网＋澳客交叉观察",
   "stale": false,
   "analysis_status": "PRE_ANALYSIS",
   "source_kind": "THIRD_PARTY_JINGCAI_OBSERVATIONS",
   "official_verified": false,
-  "snapshot_hash": "6432efbec7ec7f36af6960bec4480edd2b38f7e06ba4c7187e23378b1d8593ff",
+  "snapshot_hash": "c635d290530b92101148d41800df4dc6de6e0d12889284cfb54572188cca74e1",
   "formal_eligible": false,
   "summary": {
-    "total_matches": 5,
+    "total_matches": 4,
     "ev_positive_count": 0,
     "model_version": "V17.0",
     "analysis_status": "PRE_ANALYSIS",
@@ -18,35 +18,13 @@
   },
   "matches": [
     {
-      "match_id": "observed:2026-11-12:周四001",
-      "league": "欧国联",
-      "home": "土耳其",
-      "away": "比利时",
-      "prob_home": 0.239694,
-      "prob_draw": 0.222096,
-      "prob_away": 0.538209,
-      "probability_basis": "de-vigged_market_odds",
-      "ev_value": null,
-      "recommendation": "观察：未提供独立且已校准的模型概率",
-      "match_time": "11/13 01:00",
-      "kickoff": null,
-      "kickoff_display": "11/13 01:00",
-      "risk": "待验证",
-      "odds": [
-        "3.66",
-        "3.95",
-        "1.63"
-      ],
-      "data_quality": "C"
-    },
-    {
       "match_id": "observed:2026-11-12:周四002",
       "league": "欧国联",
       "home": "亚美尼亚",
       "away": "塞浦路斯",
-      "prob_home": 0.428426,
-      "prob_draw": 0.278817,
-      "prob_away": 0.292758,
+      "prob_home": 0.39882,
+      "prob_draw": 0.282124,
+      "prob_away": 0.319056,
       "probability_basis": "de-vigged_market_odds",
       "ev_value": null,
       "recommendation": "观察：未提供独立且已校准的模型概率",
@@ -55,9 +33,9 @@
       "kickoff_display": "11/13 01:00",
       "risk": "待验证",
       "odds": [
-        "2.05",
-        "3.15",
-        "3.00"
+        "2.20",
+        "3.11",
+        "2.75"
       ],
       "data_quality": "C"
     },
@@ -66,9 +44,9 @@
       "league": "欧国联",
       "home": "阿尔巴尼",
       "away": "芬兰",
-      "prob_home": 0.487503,
-      "prob_draw": 0.280353,
-      "prob_away": 0.232144,
+      "prob_home": 0.492962,
+      "prob_draw": 0.284893,
+      "prob_away": 0.222145,
       "probability_basis": "de-vigged_market_odds",
       "ev_value": null,
       "recommendation": "观察：未提供独立且已校准的模型概率",
@@ -77,9 +55,9 @@
       "kickoff_display": "11/13 03:45",
       "risk": "待验证",
       "odds": [
-        "1.80",
-        "3.13",
-        "3.78"
+        "1.78",
+        "3.08",
+        "3.95"
       ],
       "data_quality": "C"
     },
@@ -88,9 +66,9 @@
       "league": "欧国联",
       "home": "黑山",
       "away": "拉脱维亚",
-      "prob_home": 0.731302,
-      "prob_draw": 0.177285,
-      "prob_away": 0.091413,
+      "prob_home": 0.750647,
+      "prob_draw": 0.165709,
+      "prob_away": 0.083644,
       "probability_basis": "de-vigged_market_odds",
       "ev_value": null,
       "recommendation": "观察：未提供独立且已校准的模型概率",
@@ -99,9 +77,9 @@
       "kickoff_display": "11/13 03:45",
       "risk": "待验证",
       "odds": [
-        "1.20",
-        "4.95",
-        "9.60"
+        "1.17",
+        "5.30",
+        "10.50"
       ],
       "data_quality": "C"
     },
@@ -110,9 +88,9 @@
       "league": "欧国联",
       "home": "英格兰",
       "away": "克罗地亚",
-      "prob_home": 0.763636,
-      "prob_draw": 0.152727,
-      "prob_away": 0.083636,
+      "prob_home": 0.783535,
+      "prob_draw": 0.14626,
+      "prob_away": 0.070205,
       "probability_basis": "de-vigged_market_odds",
       "ev_value": null,
       "recommendation": "观察：未提供独立且已校准的模型概率",
@@ -121,9 +99,9 @@
       "kickoff_display": "11/13 03:45",
       "risk": "待验证",
       "odds": [
-        "1.15",
-        "5.75",
-        "10.50"
+        "1.12",
+        "6.00",
+        "12.50"
       ],
       "data_quality": "C"
     }
