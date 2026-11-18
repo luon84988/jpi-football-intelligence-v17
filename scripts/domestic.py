@@ -67,36 +67,12 @@ def clock(text):
     return datetime.strptime(text, "%Y-%m-%d %H:%M:%S").replace(tzinfo=BJT)
 
 
-def odds(values):
-    try:
-        nums = [float(x) for x in values]
-        if len(nums) != 3 or any(not math.isfinite(x) or x <= 1 for x in nums):
-            return None
-        return [f"{x:.2f}" for x in nums]
-    except (TypeError, ValueError):
-        return None
-
-
-def handicap(value):
-    value = str(value).strip()
-    return int(value) if re.fullmatch(r"[+-]?\d+", value) else None
-
-
 def parse_500(text):
     rows = []
     for node in Page(text).root.all():
         if node.tag != "tr" or not node.has("bet-tb-tr"):
             continue
         a = node.attrs
-        markets = {"nspf": {}, "spf": {}}
-        for child in node.all():
-            c = child.attrs
-            if c.get("data-type") in markets and "data-value" in c:
-                market = markets[c["data-type"]]
-                key = c["data-value"]
-                if key in market:
-                    raise ValueError("500 duplicate market outcome")
-                market[key] = c.get("data-sp")
         active = dict(part.split(":", 1) for part in a.get("data-subactive", "").split(",") if ":" in part)
         try:
             rows.append({"source": "500", "sales_date": a["data-processdate"],
@@ -104,10 +80,6 @@ def parse_500(text):
                 "kickoff": clock(a["data-matchdate"] + " " + a["data-matchtime"] + ":00").isoformat(),
                 "sales_end": clock(a["data-buyendtime"]).isoformat(),
                 "provider_event_id": a.get("data-id"), "provider_fixture_id": a.get("data-fixtureid"),
-                "odds": odds([markets["nspf"].get(k) for k in ("3", "1", "0")]),
-                "handicap": handicap(a.get("data-rangqiu")),
-                "hhad_odds": odds([markets["spf"].get(k) for k in ("3", "1", "0")]),
-                "hhad_available": a.get("data-isend") == "0" and a.get("data-isactive") == "1" and active.get("spfgg") == "1",
                 "available": a.get("data-isend") == "0" and a.get("data-isactive") == "1" and active.get("nspfgg") == "1"})
         except (KeyError, ValueError):
             continue
@@ -126,18 +98,17 @@ def parse_okooo(text):
             continue
         date_node = next((n for n in group.all() if n.attrs.get("id") == "ChangeDate"), None)
         date_match = re.search(r"\d{4}-\d{2}-\d{2}", date_node.content()) if date_node else None
-        markets = {"0": {}, "1": {}}
-        for n in node.all():
-            a = n.attrs
-            if a.get("data-wf") in markets and "data-wz" in a:
-                market = markets[a["data-wf"]]
-                key = a["data-wz"]
-                if key in market:
-                    raise ValueError("OKOOO duplicate market outcome")
-                market[key] = n
+        # The outcome cells carry team identities even when prices are absent.
+        sides = {}
+        for child in node.all():
+            attrs = child.attrs
+            side = attrs.get("data-wz")
+            if attrs.get("data-wf") == "0" and side in ("0", "2"):
+                if side in sides:
+                    raise ValueError("OKOOO duplicate team position")
+                sides[side] = child
         try:
-            h, d, a = [markets["0"][k] for k in ("0", "1", "2")]
-            hhad = [markets["1"].get(k) for k in ("0", "1", "2")]
+            home, away = sides["0"], sides["2"]
             def team(part):
                 return next(n.attrs["title"] for n in part.all() if n.has("zhum") and n.attrs.get("title"))
             time_node = next(n for n in node.all() if n.has("shijian"))
@@ -145,33 +116,12 @@ def parse_okooo(text):
             if not date_match or not when:
                 continue
             rows.append({"source": "okooo", "sales_date": date_match.group(),
-                "match_num": node.attrs["data-ordercn"], "home": team(h), "away": team(a),
+                "match_num": node.attrs["data-ordercn"], "home": team(home), "away": team(away),
                 "kickoff": clock(when.group()).isoformat(), "provider_fixture_id": node.attrs.get("data-mid"),
-                "odds": odds([n.attrs.get("data-sp") for n in (h, d, a)]),
-                "handicap": handicap(node.attrs.get("data-rq")),
-                "hhad_odds": odds([n.attrs.get("data-sp") if n else None for n in hhad]),
-                "hhad_available": node.attrs.get("data-end") == "0" and all(n and not n.has("weiks") for n in hhad),
-                "available": node.attrs.get("data-end") == "0" and not any(n.has("weiks") for n in (h, d, a))})
+                "available": node.attrs.get("data-end") == "0"})
         except (KeyError, StopIteration, ValueError):
             continue
     return rows
-
-
-def compare_hhad(left, right):
-    reason = None
-    if not left.get("hhad_available") or not right.get("hhad_available"):
-        reason = "hhad_not_available_by_both"
-    elif left.get("handicap") is None or right.get("handicap") is None:
-        reason = "hhad_missing_line"
-    elif left["handicap"] != right["handicap"]:
-        reason = "hhad_line_conflict"
-    elif not left.get("hhad_odds") or not right.get("hhad_odds"):
-        reason = "hhad_missing_three_way_sp"
-    elif left["hhad_odds"] != right["hhad_odds"]:
-        reason = "hhad_sp_conflict"
-    if reason:
-        return {"status": "gap", "reason": reason}
-    return {"status": "cross_checked", "home_handicap": left["handicap"], "reported_sp": left["hhad_odds"]}
 
 
 def reconcile(left, right, now):
@@ -201,21 +151,17 @@ def reconcile(left, right, now):
             reason = "undecodable_fixture_identity"
         elif not x["available"] or not y["available"]:
             reason = "not_reported_available_by_both"
-        elif not x["odds"] or not y["odds"]:
-            reason = "missing_three_way_sp"
         elif any(x[f] != y[f] for f in ("home", "away", "kickoff")):
             reason = "fixture_identity_conflict"
-        elif x["odds"] != y["odds"]:
-            reason = "sp_conflict"
         elif datetime.fromisoformat(x["kickoff"]) <= now or datetime.fromisoformat(x["sales_end"]) <= now:
             reason = "kickoff_or_sales_deadline_passed"
         if reason:
             gaps.append({"sales_date": k[0], "match_num": k[1], "reason": reason})
         else:
             matched.append({"sales_date": k[0], "match_num": k[1], "home": x["home"], "away": x["away"],
-                "kickoff": x["kickoff"], "reported_sales_end": x["sales_end"], "reported_sp": x["odds"],
+                "kickoff": x["kickoff"], "reported_sales_end": x["sales_end"],
                 "observed_at": now.isoformat(), "formal_eligible": False,
-                "official_verification": "NOT_VERIFIED", "sources": [x, y], "hhad": compare_hhad(x, y)})
+                "official_verification": "NOT_VERIFIED", "sources": [x, y]})
     return matched, gaps
 
 
@@ -225,19 +171,13 @@ def render_report(payload):
     lines = ["# 当日竞彩页面交叉观察", "",
         f"销售日：{payload['sales_date']}；实际观察时间：{payload['observed_at']}。", "",
         "状态：预分析输入。来源为500/澳客转述，官方未核验，不是正式分析或投注推荐。",
-        "让球数按主队口径；SP顺序均为胜／平／负。观察时间不代表官方赔率发布时间。", "",
-        "| 竞彩编号 | 对阵 | 开球（北京时间） | 胜平负SP | 主队让球 | 让球胜平负SP／缺口 |",
-        "|---|---|---|---|---|---|"]
+        "| 竞彩编号 | 对阵 | 开球（北京时间） |",
+        "|---|---|---|"]
     for row in payload["matches"]:
-        hhad = row["hhad"]
-        checked = hhad["status"] == "cross_checked"
-        line = f"{hhad['home_handicap']:+d}" if checked else "—"
-        prices = "/".join(hhad["reported_sp"]) if checked else hhad["reason"]
-        values = [row["match_num"], row["home"] + " vs " + row["away"], row["kickoff"],
-                  "/".join(row["reported_sp"]), line, prices]
+        values = [row["match_num"], row["home"] + " vs " + row["away"], row["kickoff"]]
         lines.append("| " + " | ".join(cell(v) for v in values) + " |")
     if not payload["matches"]:
-        lines += ["", "没有通过当前销售日、身份、时间与两站SP一致性检查的候选。"]
+        lines += ["", "没有通过当前销售日、身份、时间与两站赛程一致性检查的候选。"]
     lines += ["", "## 来源与缺口", ""]
     for source in payload["sources"]:
         lines.append(f"- {cell(source['source'])}：{cell(source['status'])}；{source['url']}")
@@ -322,9 +262,7 @@ def main():
         "source_kind": "THIRD_PARTY_JINGCAI_OBSERVATIONS", "official_verification": "NOT_VERIFIED",
         "formal_eligible": False, "sources": health, "matches": matched, "gaps": gaps,
         "source_observations": parsed,
-        "warning": "500/澳客页面转述的竞彩场次与SP，仅作交叉核对候选；不是官方直连、正式预测或投注推荐。观察时间不是官方赔率发布时间。两站可能使用共同上游，不能视为独立官方认证。"}
-    payload["market_gaps"] = [{"match_num": row["match_num"], "market": "hhad", "reason": row["hhad"]["reason"]}
-                              for row in matched if row["hhad"]["status"] != "cross_checked"]
+        "warning": "500/澳客页面转述的竞彩场次仅作交叉核对候选，官方尚未核验。两站可能使用共同上游，不能视为独立官方认证。"}
     folder = ROOT / "reports"
     archive = folder / "domestic" / payload["sales_date"] / (now.strftime("%H%M%S_%fZ") + ".json")
     archive.parent.mkdir(parents=True, exist_ok=True)
@@ -333,8 +271,8 @@ def main():
         output.write(serialized)
     (folder / "domestic-latest.json").write_text(serialized, encoding="utf-8")
     (folder / "domestic-latest.md").write_text(render_report(payload), encoding="utf-8")
-    print(json.dumps({"matched": len(matched), "gaps": len(gaps), "hhad_matched": len(matched) - len(payload["market_gaps"]),
-        "hhad_gaps": len(payload["market_gaps"]), "formal_eligible": False, "sources": health}, ensure_ascii=False))
+    print(json.dumps({"matched": len(matched), "gaps": len(gaps),
+        "formal_eligible": False, "sources": health}, ensure_ascii=False))
     return 0 if matched and all(h["status"] == "success" for h in health) else 2
 
 

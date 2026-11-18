@@ -7,7 +7,6 @@ source response must never overwrite the last known dashboard snapshot.
 from __future__ import annotations
 
 import json
-import math
 import os
 import sys
 from datetime import datetime, timezone
@@ -87,7 +86,7 @@ def validate_source(payload: dict) -> None:
                 or not re.fullmatch(r"[a-f0-9]{64}", str(payload.get("snapshotHash", "")))
                 or proof.get("snapshotHash") != payload.get("snapshotHash")):
             raise ExportError("Third-party observation persistence proof is missing")
-        if not payload.get("matches") or any(not str(m.get("sourceEventId", "")).startswith("observed:") or m.get("formalEligible") is not False for m in payload["matches"]):
+        if not payload.get("matches") or any(not isinstance(m, dict) or not str(m.get("sourceEventId", "")).startswith("observed:") or m.get("formalEligible") is not False for m in payload["matches"]):
             raise ExportError("Third-party match identity or analysis boundary is invalid")
 
 
@@ -135,71 +134,62 @@ def fetch_live_data(endpoint: str) -> dict:
     return payload
 
 
-def odds_probabilities(raw_odds: object) -> tuple[float, float, float] | None:
-    if not isinstance(raw_odds, (list, tuple)) or len(raw_odds) != 3:
-        return None
-    try:
-        odds = [float(value) for value in raw_odds]
-    except (TypeError, ValueError):
-        return None
-    if any(not math.isfinite(value) or value <= 1 for value in odds):
-        return None
-    inverse = [1.0 / value for value in odds]
-    total = sum(inverse)
-    if total <= 0:
-        return None
-    return tuple(value / total for value in inverse)
-
-
 def build_dashboard_payload(payload: dict) -> dict:
     validate_source(payload)
+    matches = payload.get("matches")
+    if not isinstance(matches, list):
+        raise ExportError("Source matches must be a list.")
     rows = []
+    seen = set()
     skipped = 0
-    for match in payload["matches"]:
+    for match in matches:
         if not isinstance(match, dict):
             skipped += 1
             continue
         league, home, away = match.get("league"), match.get("home"), match.get("away")
-        probs = odds_probabilities(match.get("odds"))
-        if not all(isinstance(value, str) and value.strip() for value in (league, home, away)) or probs is None:
+        match_id = match.get("sourceEventId") or match.get("matchNum")
+        if (type(match_id) not in (str, int) or not str(match_id).strip()
+                or not all(isinstance(value, str) and value.strip() for value in (league, home, away))
+                or home.strip() == away.strip()):
             skipped += 1
             continue
+        identity = str(match_id)
+        if identity in seen:
+            raise ExportError("Duplicate source match identity; existing dashboard data was preserved.")
+        seen.add(identity)
         rows.append({
-            "match_id": match.get("sourceEventId") or match.get("matchNum"),
+            "match_id": identity,
             "league": league,
             "home": home,
             "away": away,
-            "prob_home": round(probs[0], 6),
-            "prob_draw": round(probs[1], 6),
-            "prob_away": round(probs[2], 6),
-            "probability_basis": "de-vigged_market_odds",
-            "ev_value": None,
+            "prob_home": None,
+            "prob_draw": None,
+            "prob_away": None,
+            "probability_basis": "UNAVAILABLE",
             "recommendation": "观察：未提供独立且已校准的模型概率",
             "match_time": match.get("time"),
-            "kickoff": None,  # Worker time is month/day and local clock, not an ISO datetime.
+            "kickoff": match.get("kickoff"),
             "kickoff_display": match.get("time"),
             "risk": "待验证",
-            "odds": match.get("odds"),
             "data_quality": match.get("dq"),
         })
     if not rows:
-        raise ExportError("No valid matches with three-way odds were returned; existing dashboard data was preserved.")
+        raise ExportError("No valid fixtures with a match identity were returned; existing dashboard data was preserved.")
     return {
         "update_time": datetime.now(timezone.utc).isoformat(timespec="seconds"),
         "source_updated_at": payload["updatedAt"],
         "source": payload.get("source", "JPi live football API"),
         "stale": False,
         "analysis_status": "PRE_ANALYSIS",
-        "source_kind": "THIRD_PARTY_JINGCAI_OBSERVATIONS" if observation_source(payload) else "OFFICIAL_MARKET_OBSERVATION",
+        "source_kind": "THIRD_PARTY_JINGCAI_OBSERVATIONS" if observation_source(payload) else "OFFICIAL_FIXTURE_OBSERVATION",
         "official_verified": not observation_source(payload),
         "snapshot_hash": payload.get("snapshotHash"),
         "formal_eligible": False,
         "summary": {
             "total_matches": len(rows),
-            "ev_positive_count": 0,
             "model_version": "V17.0",
             "analysis_status": "PRE_ANALYSIS",
-            "probability_basis": "de-vigged_market_odds; not independent model probabilities",
+            "probability_basis": "UNAVAILABLE",
             "skipped_invalid_matches": skipped,
         },
         "matches": rows,
