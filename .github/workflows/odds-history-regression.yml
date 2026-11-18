@@ -1,0 +1,23 @@
+name: Odds History Append-Only Regression
+
+on:
+  pull_request:
+    paths:
+      - 'worker/source-database.ts'
+      - 'tests/odds-history.test.mjs'
+      - '.github/workflows/odds-history-regression.yml'
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  odds-history:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+      - name: Verify historical odds are never deleted
+        run: node --experimental-strip-types --test tests/odds-history.test.mjs
