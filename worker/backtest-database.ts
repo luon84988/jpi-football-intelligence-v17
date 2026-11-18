@@ -13,8 +13,8 @@ export async function getBacktestOverview(db: D1Database) {
   await ensureBacktestDatabase(db)
   const [runs, cases, metrics, errors, learning] = await Promise.all([
     db.prepare(`SELECT id,name,model_version,status,sample_size,scope_from,scope_to,started_at,completed_at,created_at FROM backtest_runs ORDER BY created_at DESC LIMIT 50`).all(),
-    db.prepare(`SELECT COUNT(*) total,SUM(CASE WHEN review_status='reviewed' THEN 1 ELSE 0 END) reviewed,AVG(result_hit) result_hit_rate,AVG(handicap_hit) handicap_hit_rate,AVG(total_hit) total_hit_rate,AVG(score_distance) average_score_distance,AVG(brier_score) brier_score,AVG(log_loss) log_loss,SUM(pnl_units) pnl_units FROM backtest_cases WHERE review_status<>'excluded'`).first(),
-    db.prepare(`SELECT run_id,dimension_type,dimension_value,sample_size,result_hit_rate,handicap_hit_rate,total_hit_rate,exact_score_hit_rate,average_score_distance,brier_score,log_loss,roi,max_drawdown FROM backtest_metrics ORDER BY created_at DESC LIMIT 200`).all(),
+    db.prepare(`SELECT COUNT(*) total,SUM(CASE WHEN review_status='reviewed' THEN 1 ELSE 0 END) reviewed,AVG(result_hit) result_hit_rate,AVG(total_hit) total_hit_rate,AVG(score_distance) average_score_distance,AVG(brier_score) brier_score,AVG(log_loss) log_loss FROM backtest_cases WHERE review_status<>'excluded'`).first(),
+    db.prepare(`SELECT run_id,dimension_type,dimension_value,sample_size,result_hit_rate,total_hit_rate,exact_score_hit_rate,average_score_distance,brier_score,log_loss FROM backtest_metrics ORDER BY created_at DESC LIMIT 200`).all(),
     db.prepare(`SELECT COALESCE(error_category,'unclassified') error_category,COUNT(*) count FROM backtest_cases WHERE review_status='reviewed' GROUP BY COALESCE(error_category,'unclassified') ORDER BY count DESC`).all(),
     db.prepare(`SELECT status,COUNT(*) count FROM learning_updates GROUP BY status ORDER BY status`).all(),
   ])

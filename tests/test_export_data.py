@@ -60,35 +60,33 @@ class ExportDataTests(unittest.TestCase):
         with self.assertRaises(export_data.ExportError):
             export_data.source_endpoint("")
 
-    def test_market_probabilities_are_de_vigged(self):
-        probabilities = export_data.odds_probabilities(["2.00", "3.00", "4.00"])
-        self.assertIsNotNone(probabilities)
-        self.assertAlmostEqual(sum(probabilities), 1.0)
-        self.assertGreater(probabilities[0], probabilities[1])
-        self.assertGreater(probabilities[1], probabilities[2])
-
-    def test_invalid_odds_rejected(self):
-        self.assertIsNone(export_data.odds_probabilities(["2.00", "—", "4.00"]))
-        self.assertIsNone(export_data.odds_probabilities([1, 2, 3]))
-
-    def test_market_probabilities_are_not_marked_as_ev(self):
+    def test_official_fixture_exports_without_model_or_prices(self):
+        fixture = {
+            "league": "测试联赛",
+            "home": "主队",
+            "away": "客队",
+            "sourceEventId": "123",
+            "kickoff": "2026-10-20T15:30:00+08:00",
+        }
         source = {
             "updatedAt": "2026-10-20T06:30:00Z",
             "source": "中国体育彩票官方竞彩",
             "sourceHealth": {"succeeded": 1, "hasData": True},
-            "matches": [{
-                "league": "测试联赛",
-                "home": "主队",
-                "away": "客队",
-                "odds": ["2.00", "3.00", "4.00"],
-                "sourceEventId": "test-1",
-            }],
+            "matches": [fixture],
         }
-        output = export_data.build_dashboard_payload(source)
-        self.assertEqual(output["summary"]["ev_positive_count"], 0)
-        self.assertIsNone(output["matches"][0]["ev_value"])
-        self.assertEqual(output["matches"][0]["probability_basis"], "de-vigged_market_odds")
-        self.assertNotIn("+EV", output["matches"][0]["recommendation"])
+        expected = export_data.build_dashboard_payload(source)["matches"][0]
+        self.assertEqual(expected["match_id"], "123")
+        self.assertEqual(expected["kickoff"], fixture["kickoff"])
+        self.assertEqual(expected["probability_basis"], "UNAVAILABLE")
+        for key in ("prob_home", "prob_draw", "prob_away"):
+            self.assertIsNone(expected[key])
+        self.assertNotIn("odds", expected)
+        for legacy_prices in (["2.00", "3.00", "4.00"], ["—"], None):
+            fixture["odds"] = legacy_prices
+            self.assertEqual(export_data.build_dashboard_payload(source)["matches"][0], expected)
+        source["matches"].append(dict(fixture))
+        with self.assertRaisesRegex(export_data.ExportError, "Duplicate source match identity"):
+            export_data.build_dashboard_payload(source)
 
     def test_fallback_source_rejected(self):
         payload = {"source": "ESPN fallback", "sourceHealth": {"succeeded": 1, "hasData": True}, "updatedAt": "2026-10-20T06:30:00Z", "matches": [{"league": "测试", "home": "主", "away": "客", "odds": ["2", "3", "4"]}]}
@@ -109,7 +107,6 @@ class ExportDataTests(unittest.TestCase):
                 "league": "测试联赛",
                 "home": "主队",
                 "away": "客队",
-                "odds": ["—", "—", "—"],
             }],
         }
         with self.assertRaises(export_data.ExportError):

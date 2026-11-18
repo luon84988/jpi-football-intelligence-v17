@@ -33,36 +33,3 @@ export const LEAGUE_STYLE_LIBRARY: Record<string, LeagueStyle> = {
   瑞士超: { tempo: 73, physical: 64, press: 68, transition: 76, defaultStyle: "快速转换", note: "节奏较快，攻防稳定性相对有限" },
   土超: { tempo: 62, physical: 72, press: 60, transition: 68, defaultStyle: "均衡", note: "对抗较强，强弱分层会影响比赛开放度" },
 };
-
-const RULES = [
-  { id: "SC-01", attacker: "高位逼抢", defender: "控球压迫", home: .07, away: -.04, text: "高位逼抢克制后场控球出球" },
-  { id: "SC-02", attacker: "低位反击", defender: "控球压迫", home: .05, away: .08, text: "控球压上会释放反击纵深" },
-  { id: "SC-03", attacker: "直接对抗", defender: "高位逼抢", home: .06, away: -.03, text: "直接越过第一道压迫可削弱逼抢收益" },
-  { id: "SC-04", attacker: "快速转换", defender: "低节奏防守", home: -.05, away: -.05, text: "低位密集防守压缩转换空间" },
-  { id: "SC-05", attacker: "控球压迫", defender: "直接对抗", home: .04, away: -.04, text: "持续控球可降低直接冲击次数" },
-] as const;
-const clamp = (value: number, min: number, max: number) => Math.min(max, Math.max(min, value));
-
-export function analyzeStyleMatchup(league: string, probabilities: number[], handicap: number, storedProfile?: Partial<LeagueStyle>) {
-  const leagueStyle = { ...(LEAGUE_STYLE_LIBRARY[league] || BASE), ...(storedProfile || {}) } as LeagueStyle;
-  const strengthGap = (probabilities[0] || 0) - (probabilities[2] || 0);
-  let homeStyle: StyleKey = leagueStyle.defaultStyle, awayStyle: StyleKey = leagueStyle.defaultStyle;
-  if (strengthGap > .16 || handicap <= -1) { homeStyle = leagueStyle.press >= 70 ? "高位逼抢" : "控球压迫"; awayStyle = "低位反击"; }
-  else if (strengthGap < -.16 || handicap >= 1) { homeStyle = "低位反击"; awayStyle = leagueStyle.transition >= 72 ? "快速转换" : "控球压迫"; }
-  else if (leagueStyle.physical >= 74) { homeStyle = "直接对抗"; awayStyle = "直接对抗"; }
-  let homeDelta = 0, awayDelta = 0;
-  const hits: Array<{ id: string; text: string }> = [];
-  for (const rule of RULES) {
-    if (homeStyle === rule.attacker && awayStyle === rule.defender) { homeDelta += rule.home; awayDelta += rule.away; hits.push({ id: rule.id, text: rule.text }); }
-    if (awayStyle === rule.attacker && homeStyle === rule.defender) { awayDelta += rule.home; homeDelta += rule.away; hits.push({ id: rule.id, text: rule.text }); }
-  }
-  if (leagueStyle.tempo >= 78) { homeDelta += .025; awayDelta += .025; hits.push({ id: "LB-01", text: "高节奏联赛提高双方进球环境" }); }
-  if (leagueStyle.tempo <= 45) { homeDelta -= .035; awayDelta -= .035; hits.push({ id: "LB-02", text: "低节奏联赛压低双方进球环境" }); }
-  homeDelta = clamp(homeDelta, -.10, .10); awayDelta = clamp(awayDelta, -.10, .10);
-  const overIndex = clamp(leagueStyle.tempo * .38 + leagueStyle.transition * .34 + leagueStyle.press * .18 + (100 - leagueStyle.physical) * .10, 0, 100);
-  const underIndex = clamp(100 - overIndex + (leagueStyle.physical - 50) * .08, 0, 100);
-  const drawIndex = clamp((100 - leagueStyle.tempo) * .38 + (100 - leagueStyle.transition) * .30 + (1 - Math.abs(strengthGap)) * 24 + leagueStyle.physical * .08, 0, 100);
-  const level = (value: number) => value >= 66 ? "高" : value >= 52 ? "中" : "低";
-  const primary = overIndex >= underIndex && overIndex >= drawIndex ? "大比分" : underIndex >= drawIndex ? "小比分" : "平局";
-  return { leagueStyle: { league, ...leagueStyle }, homeStyle, awayStyle, adjustment: { home: Number(homeDelta.toFixed(3)), away: Number(awayDelta.toFixed(3)) }, rules: hits.length ? hits : [{ id: "SC-00", text: "未触发显著相克，采用联赛中性基线" }], tendency: { primary, over: { index: Math.round(overIndex), level: level(overIndex) }, under: { index: Math.round(underIndex), level: level(underIndex) }, draw: { index: Math.round(drawIndex), level: level(drawIndex) }, basis: "联赛球风先验；单场仍由赔率、让球与 xG 校正" }, evidence: "B-（联赛基线 + 赔率强弱代理；待接入球队事件数据升级）" };
-}

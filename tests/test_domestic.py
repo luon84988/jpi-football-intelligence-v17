@@ -1,8 +1,9 @@
 import copy
+import re
 from datetime import datetime, timezone
 import unittest
 
-from scripts.domestic import parse_500, parse_okooo, reconcile, odds, decode_html, compare_hhad, render_report
+from scripts.domestic import parse_500, parse_okooo, reconcile, decode_html, render_report
 
 NOW = datetime(2026, 10, 29, 7, 0, tzinfo=timezone.utc)
 FIVE = '''<table><tr class="bet-tb-tr" data-processdate="2026-10-29" data-matchnum="周四001"
@@ -24,32 +25,15 @@ class DomesticTests(unittest.TestCase):
     def setUp(self):
         self.left, self.right = parse_500(FIVE), parse_okooo(OK)
 
-    def test_parsers_keep_handicap_market_and_sign_separate(self):
-        five = FIVE.replace('data-id="123"', 'data-rangqiu="+1" data-id="123"').replace(
-            'data-subactive="nspfgg:1"', 'data-subactive="nspfgg:1,spfgg:1"').replace(
-            '</td></tr>', '<p data-type="spf" data-value="1" data-sp="4.00"></p><p data-type="spf" data-value="0" data-sp="1.10"></p></td></tr>')
-        ok = OK.replace('data-end="0"', 'data-end="0" data-rq="1"').replace(
-            '<div data-wf="1" data-wz="0" data-sp="9.00"></div>',
-            '<div data-wf="1" data-wz="0" data-sp="9.00"></div><div data-wf="1" data-wz="1" data-sp="4.00"></div><div data-wf="1" data-wz="2" data-sp="1.10"></div>')
-        left, right = parse_500(five), parse_okooo(ok)
+    def test_parsers_and_reconcile_accept_pages_without_prices(self):
+        left = parse_500(re.sub(r' data-sp="[^"]*"', '', FIVE))
+        right = parse_okooo(re.sub(r' data-sp="[^"]*"', '', OK))
         rows, gaps = reconcile(left, right, NOW)
         self.assertEqual(gaps, [])
-        self.assertEqual(rows[0]["reported_sp"], ["2.10", "3.20", "3.10"])
-        self.assertEqual(rows[0]["hhad"], {"status": "cross_checked", "home_handicap": 1, "reported_sp": ["9.00", "4.00", "1.10"]})
-
-    def test_handicap_sign_conflict_never_borrows_other_market(self):
-        left = {"hhad_available": True, "handicap": 1, "hhad_odds": ["2", "3", "4"]}
-        right = dict(left, handicap=-1)
-        self.assertEqual(compare_hhad(left, right)["reason"], "hhad_line_conflict")
-        right = dict(left, hhad_odds=["2.01", "3", "4"])
-        self.assertEqual(compare_hhad(left, right)["reason"], "hhad_sp_conflict")
-
-    def test_absent_handicap_does_not_invent_line_or_prices(self):
-        row = reconcile(self.left, self.right, NOW)[0][0]
-        self.assertEqual(row["hhad"]["status"], "gap")
-        self.assertNotIn("reported_sp", row["hhad"])
-        self.assertNotIn("home_handicap", row["hhad"])
-        self.assertFalse(row["formal_eligible"])
+        self.assertEqual(len(rows), 1)
+        self.assertFalse(rows[0]["formal_eligible"])
+        self.assertNotIn("reported_sp", rows[0])
+        self.assertNotIn("hhad", rows[0])
 
     def test_readable_report_escapes_external_team_names(self):
         row = reconcile(self.left, self.right, NOW)[0][0]
@@ -57,7 +41,6 @@ class DomesticTests(unittest.TestCase):
         report = render_report({"sales_date": "2026-10-29", "observed_at": NOW.isoformat(), "matches": [row], "sources": [], "gaps": []})
         self.assertNotIn('<script>', report)
         self.assertIn('&lt;script&gt;', report)
-        self.assertIn('hhad_not_available_by_both', report)
         self.assertIn('官方未核验', report)
 
     def test_legacy_charset_superset_handles_extended_chinese(self):
@@ -79,17 +62,10 @@ class DomesticTests(unittest.TestCase):
         rows, gaps = reconcile(self.left, self.right, NOW)
         self.assertEqual(len(rows), 1)
         self.assertEqual(gaps, [])
-        self.assertEqual(rows[0]["reported_sp"], ["2.10", "3.20", "3.10"])
         self.assertEqual(rows[0]["sales_date"], "2026-10-29")
         self.assertTrue(rows[0]["kickoff"].startswith("2026-10-30"))
         self.assertFalse(rows[0]["formal_eligible"])
         self.assertEqual(rows[0]["official_verification"], "NOT_VERIFIED")
-
-    def test_odds_conflict_does_not_choose_a_winner(self):
-        self.right[0]["odds"][0] = "2.11"
-        rows, gaps = reconcile(self.left, self.right, NOW)
-        self.assertEqual(rows, [])
-        self.assertEqual(gaps[0]["reason"], "sp_conflict")
 
     def test_missing_source_is_a_gap(self):
         rows, gaps = reconcile(self.left, [], NOW)
@@ -130,9 +106,7 @@ class DomesticTests(unittest.TestCase):
         with self.assertRaises(ValueError):
             reconcile(self.left * 2, self.right, NOW)
 
-    def test_invalid_odds_and_wrong_weekday_are_rejected(self):
-        for value in ("NaN", "inf", "0", "1", "未开售"):
-            self.assertIsNone(odds([value, "2", "3"]))
+    def test_wrong_weekday_is_rejected(self):
         for row in self.left + self.right:
             row["match_num"] = "周三001"
         self.assertEqual(reconcile(self.left, self.right, NOW)[1][0]["reason"], "invalid_jingcai_number")

@@ -13,7 +13,7 @@
             <p id="update-time" class="text-xs text-gray-400 mt-1">同步中...</p>
         </div>
         <div class="bg-gray-800 rounded-2xl border border-gray-700 p-6">
-            <h2 class="font-bold mb-4">🎯 赛事预测列表</h2>
+            <h2 class="font-bold mb-4">🎯 比赛赛程</h2>
             <div id="match-list" class="space-y-3"></div>
         </div>
     </div>
@@ -44,7 +44,7 @@
                         ${m.prob_home != null && m.scores ? `<div class="text-xs text-gray-300 mt-2">胜 ${pc(m.prob_home)} · 平 ${pc(m.prob_draw)} · 负 ${pc(m.prob_away)} ｜ 预期进球 ${m.xg_home}-${m.xg_away} ｜ 比分 ${m.scores.join(' / ')} ｜ 大2.5 ${pc(m.over25)}</div>` : ''}
                     </div>
                 `).join('');
-            } catch(e) { document.getElementById('update-time').innerText = '数据读取失败：请检查 GitHub Pages 数据文件与自动更新任务'; document.getElementById('match-list').textContent = '暂时无法读取已发布的分析结果。'; }
+            } catch(e) { document.getElementById('update-time').innerText = '数据读取失败：请检查 GitHub Pages 数据文件与自动更新任务'; document.getElementById('match-list').textContent = '暂时无法读取已发布的赛程。'; }
         }
         loadData();
     </script>
