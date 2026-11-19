@@ -90,6 +90,35 @@ def validate_source(payload: dict) -> None:
             raise ExportError("Third-party match identity or analysis boundary is invalid")
 
 
+def http_failure_message(error: HTTPError) -> str:
+    """Keep bounded typed Worker diagnostics; never log arbitrary response text."""
+    message = f"Live API returned HTTP {error.code}."
+    try:
+        raw = error.read(8193)
+        if len(raw) > 8192:
+            return message
+        payload = json.loads(raw.decode("utf-8"))
+    except (OSError, ValueError, TypeError):
+        return message
+    if not isinstance(payload, dict):
+        return message
+    details = []
+    if payload.get("error") == "OFFICIAL_SOURCE_TEMPORARILY_UNAVAILABLE":
+        details.append("worker_error=OFFICIAL_SOURCE_TEMPORARILY_UNAVAILABLE")
+    if type(payload.get("stale")) is bool:
+        details.append("stale=" + str(payload["stale"]).lower())
+    attempt = payload.get("sourceAttempt")
+    if isinstance(attempt, dict):
+        status = attempt.get("status")
+        if type(status) is int and 100 <= status <= 599:
+            details.append(f"upstream_status={status}")
+        outcome = attempt.get("outcome")
+        if outcome in ("http_error", "invalid_json", "invalid_match_groups", "received",
+                       "empty_slate", "timeout", "request_failed"):
+            details.append("upstream_outcome=" + outcome)
+    return message + (" " + "; ".join(details) if details else "")
+
+
 def fetch_live_data(endpoint: str) -> dict:
     request, authenticated = api_request(endpoint)
     open_request = build_opener(RejectCredentialRedirects()).open if authenticated else urlopen
@@ -99,7 +128,7 @@ def fetch_live_data(endpoint: str) -> dict:
                 raise ExportError(f"Live API returned HTTP {response.status}.")
             raw = response.read(5_000_001)
     except HTTPError as exc:
-        raise ExportError(f"Live API returned HTTP {exc.code}.") from exc
+        raise ExportError(http_failure_message(exc)) from exc
     except (URLError, TimeoutError) as exc:
         raise ExportError(f"Live API request failed: {exc}") from exc
     if len(raw) > 5_000_000:
