@@ -26,7 +26,7 @@
                 const data = await res.json();
                 currentData = data;
                 renderData(data);
-            } catch(e) { document.getElementById('update-time').innerText = '数据读取失败：请检查 GitHub Pages 数据文件与自动更新任务'; document.getElementById('match-list').textContent = '暂时无法读取已发布的赛程。'; }
+            } catch(e) { currentData = null; document.getElementById('update-time').innerText = '数据读取失败：请检查 GitHub Pages 数据文件与自动更新任务'; document.getElementById('match-list').textContent = '暂时无法读取已发布的赛程。'; }
         }
         function renderData(data) {
                 const freshness = assessSnapshot(data);
