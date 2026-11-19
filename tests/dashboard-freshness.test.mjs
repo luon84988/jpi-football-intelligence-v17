@@ -61,3 +61,11 @@ test('explicit stale and non-ok status remain unavailable even with a recent sou
         assert.doesNotMatch(p.elements['match-list'].innerHTML,/SYNTHETIC MODEL PICK/);
     }
 });
+
+test('a malformed snapshot cannot leave a failing periodic render running', async()=>{
+    for(const data of [{matches:null}, {}, []]) {
+        const p = await page(data);
+        assert.doesNotThrow(() => p.advance(30000));
+        assert.equal(p.elements['match-list'].textContent, '暂时无法读取已发布的赛程。');
+    }
+});
