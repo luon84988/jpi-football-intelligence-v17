@@ -6,16 +6,27 @@ import sys
 from pathlib import Path
 sys.path.insert(0, str(Path(__file__).resolve().parents[1]))
 from datetime import datetime, timezone
-from urllib.request import Request, urlopen
+from time import sleep
 from urllib.error import URLError, HTTPError
-from export_data import source_endpoint, fetch_live_data, build_dashboard_payload, observation_source, ExportError
+from export_data import source_endpoint, fetch_live_data, build_dashboard_payload, observation_source, ExportError, LiveHTTPError
+
+def read_current_feed(endpoint: str) -> dict:
+    try:
+        return fetch_live_data(endpoint)
+    except LiveHTTPError as exc:
+        if exc.status != 503:
+            raise
+        print(f"::notice::JPi live feed temporarily unavailable; retrying once after 20 seconds. {exc}", file=sys.stderr)
+        sleep(20)
+        return fetch_live_data(endpoint)
+
 
 def check():
     base = os.environ.get("JPI_API_URL", "")
     if not base:
         raise ExportError("JPI_API_URL is not configured")
     endpoint = source_endpoint(base)
-    payload = fetch_live_data(endpoint)
+    payload = read_current_feed(endpoint)
     count = len(build_dashboard_payload(payload)["matches"])
     if count < 1:
         raise ExportError("No official matches")
