@@ -23,6 +23,12 @@ class ExportError(RuntimeError):
     pass
 
 
+class LiveHTTPError(ExportError):
+    def __init__(self, status: int, message: str):
+        super().__init__(message)
+        self.status = status
+
+
 def source_endpoint(base_url: str) -> str:
     base_url = base_url.strip().rstrip("/")
     if not base_url:
@@ -125,10 +131,10 @@ def fetch_live_data(endpoint: str) -> dict:
     try:
         with open_request(request, timeout=25) as response:
             if response.status != 200:
-                raise ExportError(f"Live API returned HTTP {response.status}.")
+                raise LiveHTTPError(response.status, f"Live API returned HTTP {response.status}.")
             raw = response.read(5_000_001)
     except HTTPError as exc:
-        raise ExportError(http_failure_message(exc)) from exc
+        raise LiveHTTPError(exc.code, http_failure_message(exc)) from exc
     except (URLError, TimeoutError) as exc:
         raise ExportError(f"Live API request failed: {exc}") from exc
     if len(raw) > 5_000_000:
