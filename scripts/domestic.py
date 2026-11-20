@@ -5,8 +5,11 @@ import json
 import math
 from datetime import datetime, timezone, timedelta
 from html.parser import HTMLParser
+from http.client import RemoteDisconnected
 from pathlib import Path
 import re
+from time import sleep
+from urllib.error import HTTPError, URLError
 from urllib.request import Request, urlopen
 
 BJT = timezone(timedelta(hours=8))
@@ -227,7 +230,7 @@ def retain_response(root, source, url, raw, charset, observed_at, response_url):
             "observed_charset": charset, "observed_response_url": response_url}
 
 
-def fetch_page(url, source, root, evidence):
+def _fetch_page_once(url, source, root, evidence):
     request = Request(url, headers={"User-Agent": "JPi-personal-research/1.0", "Accept": "text/html"})
     with urlopen(request, timeout=20) as response:
         raw = response.read(1_500_001)
@@ -240,19 +243,42 @@ def fetch_page(url, source, root, evidence):
         return text, hashlib.sha256(raw).hexdigest(), replacements
 
 
+def fetch_page(url, source, root, evidence, attempts=None):
+    """Retry one transport timeout or disconnect. Keep HTTP and data errors terminal."""
+    attempts = attempts if attempts is not None else []
+    for index in range(2):
+        attempt = {"attempt": index + 1, "started_at": datetime.now(timezone.utc).isoformat()}
+        attempts.append(attempt)
+        try:
+            result = _fetch_page_once(url, source, root, evidence)
+        except Exception as error:
+            attempt.update(status="failed", error=type(error).__name__,
+                           completed_at=datetime.now(timezone.utc).isoformat())
+            transport_error = error
+            if isinstance(error, URLError) and not isinstance(error, HTTPError):
+                transport_error = error.reason
+                attempt["transport_error"] = type(transport_error).__name__
+            if index == 1 or not isinstance(transport_error, (RemoteDisconnected, TimeoutError)):
+                raise
+            sleep(1)
+        else:
+            attempt.update(status="success", completed_at=datetime.now(timezone.utc).isoformat())
+            return result
+
+
 def main():
     parsed, health = {}, []
     for name, url in SOURCES.items():
-        evidence = {}
+        evidence, attempts = {}, []
         try:
-            text, digest, replacements = fetch_page(url, name, ROOT, evidence)
+            text, digest, replacements = fetch_page(url, name, ROOT, evidence, attempts)
             parsed[name] = (parse_500 if name == "500" else parse_okooo)(text)
             if not parsed[name]:
                 raise ValueError("No recognized fixture rows")
-            health.append({"source": name, "url": url, "status": "success", "rows": len(parsed[name]), "response_sha256": digest, "document_decode_replacements": replacements, "capture": evidence})
+            health.append({"source": name, "url": url, "status": "success", "rows": len(parsed[name]), "response_sha256": digest, "document_decode_replacements": replacements, "capture": evidence, "fetch_attempts": attempts})
         except Exception as error:
             parsed[name] = []
-            health.append({"source": name, "url": url, "status": "failed", "error": type(error).__name__, "capture": evidence or None})
+            health.append({"source": name, "url": url, "status": "failed", "error": type(error).__name__, "capture": evidence or None, "fetch_attempts": attempts})
     now = datetime.now(timezone.utc)
     try:
         matched, gaps = reconcile(parsed["500"], parsed["okooo"], now)
