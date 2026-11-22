@@ -27,3 +27,8 @@ Each saved envelope contains source-referenced partial fixture inputs and explic
 Database migration 0005 adds only the two observation tables. Existing tables/data are preserved. Rollback uses the previous saved Site version and the matching GitHub revision; additive tables may remain. Do not replay old snapshots as current evidence.
 
 Deploy the Sites Worker before switching the Actions collector. The updated Worker accepts both existing observation snapshots and fixture-only observations. The export requires a source match identity and teams; probability fields stay null until an independent model is wired into the export.
+
+
+## Health-monitor retry boundary
+
+The read-only health monitor retries at most once only when Worker diagnostics identify an upstream HTTP 500/502/503/504 or an explicit timeout/request failure. Upstream 567 policy denials, other 4xx responses, quota responses, and unclassified HTTP 503 errors are not retried. A scheduled monitor failure may trigger the separate authorized 500/OKOOO observation refresh; that refresh remains PRE_ANALYSIS and NOT_VERIFIED and does not restore official-source health.
