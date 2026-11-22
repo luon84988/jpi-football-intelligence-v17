@@ -39,6 +39,8 @@ class ProductionMonitorRetryTests(TestCase):
             monitor_production.LiveHTTPError(503, "no structured upstream diagnostics"),
             monitor_production.LiveHTTPError(403, "forbidden", upstream_status=403,
                                              upstream_outcome="http_error"),
+            monitor_production.LiveHTTPError(403, "worker auth failure with transient upstream metadata",
+                                             upstream_status=503, upstream_outcome="http_error"),
         )
         for error in errors:
             with self.subTest(error=str(error)):
