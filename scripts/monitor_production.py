@@ -22,7 +22,7 @@ def read_current_feed(endpoint: str) -> dict:
             exc.upstream_status in TRANSIENT_UPSTREAM_HTTP_STATUSES
             or exc.upstream_outcome in TRANSIENT_UPSTREAM_OUTCOMES
         )
-        if not transient_upstream:
+        if exc.status not in {502, 503, 504} or not transient_upstream:
             raise
         print(
             "::notice::JPi live feed has a transient upstream failure; "
