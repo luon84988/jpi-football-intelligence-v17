@@ -4,6 +4,7 @@ on:
   pull_request:
     paths:
       - 'export_data.py'
+      - 'scripts/monitor_production.py'
       - 'scripts/domestic.py'
       - 'scripts/upload_observations.py'
       - 'scripts/publish_dashboard.py'

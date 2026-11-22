@@ -24,9 +24,13 @@ class ExportError(RuntimeError):
 
 
 class LiveHTTPError(ExportError):
-    def __init__(self, status: int, message: str):
+    def __init__(self, status: int, message: str, *,
+                 upstream_status: int | None = None,
+                 upstream_outcome: str | None = None):
         super().__init__(message)
         self.status = status
+        self.upstream_status = upstream_status
+        self.upstream_outcome = upstream_outcome
 
 
 def source_endpoint(base_url: str) -> str:
@@ -96,33 +100,41 @@ def validate_source(payload: dict) -> None:
             raise ExportError("Third-party match identity or analysis boundary is invalid")
 
 
-def http_failure_message(error: HTTPError) -> str:
-    """Keep bounded typed Worker diagnostics; never log arbitrary response text."""
+def http_failure_details(error: HTTPError) -> tuple[str, int | None, str | None]:
+    """Return bounded, typed Worker diagnostics without logging arbitrary response text."""
     message = f"Live API returned HTTP {error.code}."
     try:
         raw = error.read(8193)
         if len(raw) > 8192:
-            return message
+            return message, None, None
         payload = json.loads(raw.decode("utf-8"))
     except (OSError, ValueError, TypeError):
-        return message
+        return message, None, None
     if not isinstance(payload, dict):
-        return message
+        return message, None, None
     details = []
     if payload.get("error") == "OFFICIAL_SOURCE_TEMPORARILY_UNAVAILABLE":
         details.append("worker_error=OFFICIAL_SOURCE_TEMPORARILY_UNAVAILABLE")
     if type(payload.get("stale")) is bool:
         details.append("stale=" + str(payload["stale"]).lower())
+    upstream_status = None
+    upstream_outcome = None
     attempt = payload.get("sourceAttempt")
     if isinstance(attempt, dict):
         status = attempt.get("status")
         if type(status) is int and 100 <= status <= 599:
+            upstream_status = status
             details.append(f"upstream_status={status}")
         outcome = attempt.get("outcome")
         if outcome in ("http_error", "invalid_json", "invalid_match_groups", "received",
                        "empty_slate", "timeout", "request_failed"):
+            upstream_outcome = outcome
             details.append("upstream_outcome=" + outcome)
-    return message + (" " + "; ".join(details) if details else "")
+    return message + (" " + "; ".join(details) if details else ""), upstream_status, upstream_outcome
+
+
+def http_failure_message(error: HTTPError) -> str:
+    return http_failure_details(error)[0]
 
 
 def fetch_live_data(endpoint: str) -> dict:
@@ -134,7 +146,11 @@ def fetch_live_data(endpoint: str) -> dict:
                 raise LiveHTTPError(response.status, f"Live API returned HTTP {response.status}.")
             raw = response.read(5_000_001)
     except HTTPError as exc:
-        raise LiveHTTPError(exc.code, http_failure_message(exc)) from exc
+        message, upstream_status, upstream_outcome = http_failure_details(exc)
+        raise LiveHTTPError(
+            exc.code, message, upstream_status=upstream_status,
+            upstream_outcome=upstream_outcome,
+        ) from exc
     except (URLError, TimeoutError) as exc:
         raise ExportError(f"Live API request failed: {exc}") from exc
     if len(raw) > 5_000_000:

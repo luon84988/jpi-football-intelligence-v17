@@ -10,13 +10,25 @@ from time import sleep
 from urllib.error import URLError, HTTPError
 from export_data import source_endpoint, fetch_live_data, build_dashboard_payload, observation_source, ExportError, LiveHTTPError
 
+TRANSIENT_UPSTREAM_HTTP_STATUSES = {500, 502, 503, 504}
+TRANSIENT_UPSTREAM_OUTCOMES = {"timeout", "request_failed"}
+
+
 def read_current_feed(endpoint: str) -> dict:
     try:
         return fetch_live_data(endpoint)
     except LiveHTTPError as exc:
-        if exc.status != 503:
+        transient_upstream = (
+            exc.upstream_status in TRANSIENT_UPSTREAM_HTTP_STATUSES
+            or exc.upstream_outcome in TRANSIENT_UPSTREAM_OUTCOMES
+        )
+        if exc.status not in {502, 503, 504} or not transient_upstream:
             raise
-        print(f"::notice::JPi live feed temporarily unavailable; retrying once after 20 seconds. {exc}", file=sys.stderr)
+        print(
+            "::notice::JPi live feed has a transient upstream failure; "
+            f"retrying once after 20 seconds. {exc}",
+            file=sys.stderr,
+        )
         sleep(20)
         return fetch_live_data(endpoint)
 

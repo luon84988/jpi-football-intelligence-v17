@@ -75,5 +75,20 @@ class HTTPFailureDiagnosticsTests(unittest.TestCase):
             self.assertEqual(destination.read_bytes(), b'preserved prior snapshot')
 
 
+
+    def test_fetch_error_exposes_typed_upstream_retry_context(self):
+        body = json.dumps({
+            'error': 'OFFICIAL_SOURCE_TEMPORARILY_UNAVAILABLE', 'stale': True,
+            'sourceAttempt': {'status': 567, 'outcome': 'http_error'},
+        }).encode()
+        with patch.dict('os.environ', {}, clear=True), patch.object(
+                export_data, 'urlopen', side_effect=self.error(body)):
+            with self.assertRaises(export_data.LiveHTTPError) as caught:
+                export_data.fetch_live_data('https://example.test/api/football/live')
+        self.assertEqual(caught.exception.status, 503)
+        self.assertEqual(caught.exception.upstream_status, 567)
+        self.assertEqual(caught.exception.upstream_outcome, 'http_error')
+        self.assertNotIn('private=', str(caught.exception))
+
 if __name__ == '__main__':
     unittest.main()
