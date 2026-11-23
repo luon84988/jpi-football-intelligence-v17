@@ -84,6 +84,8 @@ jobs:
           fi
 
       - name: Collect current 500 and OKOOO evidence
+        id: domestic
+        continue-on-error: true
         run: python scripts/domestic.py
 
       - name: Persist observations and raw evidence to private Site D1
@@ -117,3 +119,9 @@ jobs:
 
       - name: Publish snapshot on current main with bounded race retries
         run: python scripts/publish_dashboard.py
+
+      - name: Preserve visibility of domestic source gaps after persistence
+        if: always() && steps.domestic.outcome == 'failure'
+        run: |
+          echo '::error::Domestic observations produced no current cross-checked Jingcai candidate or a source gap; inspect the retained report. No official certification was issued.'
+          exit 2
