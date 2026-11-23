@@ -21,3 +21,13 @@ class FeedRecoveryWorkflowTests(unittest.TestCase):
         self.assertIn("group: jpi-observation-publication", collector)
         self.assertNotIn("secrets: inherit", recovery)
         self.assertNotIn("actions/checkout", recovery)
+
+    def test_domestic_gaps_are_persisted_before_the_job_reports_failure(self):
+        collector = (Path(__file__).resolve().parents[1] / ".github" / "workflows" / "auto_run.yml").read_text()
+        domestic = collector.split("- name: Collect current 500 and OKOOO evidence", 1)[1].split("\n      - name:", 1)[0]
+        self.assertIn("id: domestic", domestic)
+        self.assertIn("continue-on-error: true", domestic)
+        persist = collector.index("- name: Persist observations and raw evidence to private Site D1")
+        report_gap = collector.index("- name: Preserve visibility of domestic source gaps after persistence")
+        self.assertLess(persist, report_gap)
+        self.assertIn("if: always() && steps.domestic.outcome == 'failure'", collector[report_gap:])
