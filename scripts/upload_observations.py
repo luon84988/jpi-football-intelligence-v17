@@ -14,6 +14,17 @@ from scripts.domestic import ROOT
 
 def upload():
     payload = json.loads((ROOT / 'reports/domestic-latest.json').read_text(encoding='utf-8'))
+    matches = payload.get('matches')
+    if not isinstance(matches, list) or not matches:
+        result = {
+            "status": "skipped",
+            "persisted": False,
+            "raw_captures_persisted": False,
+            "reason": "no_current_cross_checked_matches",
+            "source_count": len(payload.get("sources", [])) if isinstance(payload.get("sources"), list) else 0,
+        }
+        print(json.dumps(result, ensure_ascii=False))
+        return result
     captures = {}
     for source in payload['sources']:
         ref = source['capture']
