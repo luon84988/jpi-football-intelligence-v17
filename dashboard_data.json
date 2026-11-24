@@ -1,12 +1,12 @@
 {
-  "update_time": "2026-11-24T01:06:15+00:00",
-  "source_updated_at": "2026-11-24T01:06:09.842924+00:00",
+  "update_time": "2026-11-24T01:56:27+00:00",
+  "source_updated_at": "2026-11-24T01:56:24.173492+00:00",
   "source": "500彩票网＋澳客交叉观察",
   "stale": false,
   "analysis_status": "PRE_ANALYSIS",
   "source_kind": "THIRD_PARTY_JINGCAI_OBSERVATIONS",
   "official_verified": false,
-  "snapshot_hash": "c116346aa8f00b7c3695c369cd146b17742db6a7ba7a0800cea708614d4a599e",
+  "snapshot_hash": "059d346cdc6482cef212359d013d350d6c34649a71f2051532a23d4b2fd424ff",
   "formal_eligible": false,
   "summary": {
     "total_matches": 8,
