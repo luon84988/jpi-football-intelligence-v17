@@ -20,13 +20,13 @@ on:
       - 'scripts/upload_observations.py'
       - 'scripts/publish_dashboard.py'
       - '.github/workflows/auto_run.yml'
-  workflow_dispatch:
-    inputs:
+  workflow_call:
+    secrets:
       SITES_SERVICE_TOKEN:
         required: false
       API_KEY:
         required: false
-  workflow_call:
+  workflow_dispatch:
   schedule:
     - cron: '7,27,47 * * * *'
     - cron: '20 13 * * *'
