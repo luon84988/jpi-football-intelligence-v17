@@ -44,7 +44,8 @@ permissions:
 
 jobs:
   test_export:
-    runs-on: self-hosted
+    # Unit tests need no private Worker/D1 access; keep them on an ephemeral hosted runner.
+    runs-on: ubuntu-latest
     defaults:
       run:
         shell: bash
