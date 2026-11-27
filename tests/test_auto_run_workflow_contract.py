@@ -32,6 +32,13 @@ class AutoRunWorkflowContractTests(unittest.TestCase):
         self.assertIn("      SITES_SERVICE_TOKEN:\n        required: false", reusable)
         self.assertIn("      API_KEY:\n        required: false", reusable)
 
+    def test_pull_request_validation_uses_a_separate_concurrency_group(self):
+        source = WORKFLOW.read_text(encoding="utf-8")
+        self.assertIn(
+            "group: ${{ github.event_name == 'pull_request' && 'jpi-v17-auto-run-pr' || 'jpi-v17-auto-run-production' }}",
+            source,
+        )
+
 
 if __name__ == "__main__":
     unittest.main()
