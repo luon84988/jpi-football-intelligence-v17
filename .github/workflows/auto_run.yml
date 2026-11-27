@@ -33,7 +33,8 @@ on:
     - cron: '30 13 * * *'
 
 concurrency:
-  group: jpi-v17-auto-run
+  # Keep PR-only validation separate so it cannot cancel or block a production schedule/recovery run.
+  group: ${{ github.event_name == 'pull_request' && 'jpi-v17-auto-run-pr' || 'jpi-v17-auto-run-production' }}
   cancel-in-progress: false
 
 env:
