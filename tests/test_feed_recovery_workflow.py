@@ -18,7 +18,10 @@ class FeedRecoveryWorkflowTests(unittest.TestCase):
         self.assertIn("github.event.workflow_run.head_repository.full_name == github.repository", recovery)
         self.assertIn("uses: ./.github/workflows/auto_run.yml", recovery)
         self.assertIn("workflow_call:", collector)
-        self.assertIn("group: jpi-observation-publication", collector)
+        self.assertIn(
+            "group: ${{ github.event_name == 'pull_request' && 'jpi-v17-auto-run-pr' || 'jpi-v17-auto-run-production' }}",
+            collector,
+        )
         self.assertNotIn("secrets: inherit", recovery)
         self.assertNotIn("actions/checkout", recovery)
 
@@ -27,7 +30,12 @@ class FeedRecoveryWorkflowTests(unittest.TestCase):
         domestic = collector.split("- name: Collect current 500 and OKOOO evidence", 1)[1].split("\n      - name:", 1)[0]
         self.assertIn("id: domestic", domestic)
         self.assertIn("continue-on-error: true", domestic)
-        persist = collector.index("- name: Persist observations and raw evidence to private Site D1")
-        report_gap = collector.index("- name: Preserve visibility of domestic source gaps after persistence")
+        persist = collector.index("- name: Upload raw evidence and original snapshot to private site D1")
+        report_gap = collector.index("- name: Keep watching domestic live API and preserve fail-closed")
         self.assertLess(persist, report_gap)
         self.assertIn("if: always() && steps.domestic.outcome == 'failure'", collector[report_gap:])
+        self.assertIn("exit 2", collector[report_gap:])
+
+
+if __name__ == "__main__":
+    unittest.main()

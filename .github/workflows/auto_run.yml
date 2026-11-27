@@ -20,20 +20,21 @@ on:
       - 'scripts/upload_observations.py'
       - 'scripts/publish_dashboard.py'
       - '.github/workflows/auto_run.yml'
-  workflow_dispatch:
-    inputs:
+  workflow_call:
+    secrets:
       SITES_SERVICE_TOKEN:
         required: false
       API_KEY:
         required: false
-  workflow_call:
+  workflow_dispatch:
   schedule:
     - cron: '7,27,47 * * * *'
     - cron: '20 13 * * *'
     - cron: '30 13 * * *'
 
 concurrency:
-  group: jpi-v17-auto-run
+  # Keep PR-only validation separate so it cannot cancel or block a production schedule/recovery run.
+  group: ${{ github.event_name == 'pull_request' && 'jpi-v17-auto-run-pr' || 'jpi-v17-auto-run-production' }}
   cancel-in-progress: false
 
 env:
@@ -44,7 +45,8 @@ permissions:
 
 jobs:
   test_export:
-    runs-on: self-hosted
+    # Unit tests need no private Worker/D1 access; keep them on an ephemeral hosted runner.
+    runs-on: ubuntu-latest
     defaults:
       run:
         shell: bash
